@@ -309,7 +309,6 @@
       <div class="err" id="err"></div>
       <button id="add">Schedule rotation</button>
       <button class="ghost" id="canceledit" style="display:none">Cancel edit</button>
-      <button class="ghost" id="btnUndo" disabled>Nothing to undo</button>
       <button class="ghost" id="clear">Clear the board</button>
     </div>
 
@@ -330,14 +329,15 @@
     </div>
 
     <div class="panel" style="margin-top:16px">
-      <h2>Save <em id="saveState">—</em></h2>
-      <div class="savebtns">
+      <h2>Game management <em id="saveState">—</em></h2>
+      <button class="ghost" id="btnUndo" disabled>Undo last action</button>
+      <div class="savebtns" style="margin-top:8px">
         <button class="ghost" id="btnExport">Save Game</button>
         <button class="ghost" id="btnImport">Load Game</button>
       </div>
       <input type="file" id="importFile" accept=".json,application/json" style="display:none">
-      <button class="ghost" id="btnNew" style="border-color:rgba(178,58,58,.35);color:var(--red)">New game — pick a new hub</button>
-      <button class="ghost" id="btnRestart" style="border-color:rgba(178,58,58,.35);color:var(--red)">Restart from 1988 — same airline</button>
+      <button class="ghost" id="btnRestartYear">Restart current year</button>
+      <button class="ghost" id="btnNew" style="border-color:rgba(178,58,58,.35);color:var(--red)">New game</button>
       <div id="saveNote" class="frow" style="margin-top:8px;color:var(--ink3);display:none"></div>
     </div>
   </div>
@@ -1073,6 +1073,7 @@ let destSel='', viaSel='', lastE=null, coachOff=false;
 let storageOK=true, saveT=null, lastSaved=0, lastAward=null, committed={};
 let schedSort='dep', schedAsc=true, schedFilter='', schedOpen=null;
 let undoStack=[], undoLabel='';   // #5 undo: snapshots taken before each mutating action
+let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};
 let owned=[], pending={}, gatesOwned=0, gatesPending=0, points=0, cumPm=0,
@@ -1227,6 +1228,8 @@ function renderAward(){
   if(!last)$('advance').onclick=()=>{
     setYear(flownYear+1);                     // roll the calendar forward now
     launched=false; editIdx=null; pending={}; gatesPending=0; lastAward=null;
+    undoStack=[];                             // a new year is a fresh undo context
+    markYearStart();                          // remember how the airline looks as the year opens
     renderHub();renderFleetPanel();render();preview();
     window.scrollTo({top:0,behavior:'smooth'});
     saveLocal();
@@ -1454,7 +1457,7 @@ function snapshot(){
   return {v:SAVE_VERSION, ts:Date.now(),
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     hub:HUB.c, year:year(),
-    points, cumPm, results, gatesOwned, acSeq, launched, coachOff, lastAward, committed, startYear:era().start,
+    points, cumPm, results, gatesOwned, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
     fleet:owned.map(a=>({id:a.id,t:a.t})),
     rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn})),
     last:lastE?{year:lastE.year,pm:lastE.pm,pax:lastE.pax,peak:lastE.peak,
@@ -1469,7 +1472,7 @@ function restore(s){
   setHub(s.hub); if(s.startYear)setStartYear(s.startYear); setYear(s.year);
   airline={name:s.airline?.name||'MegaHub Airways',c1:s.airline?.c1||'#2A6C99',c2:s.airline?.c2||'#16283C'};
   points=s.points|0; cumPm=s.cumPm||0; results=s.results||[];
-  gatesOwned=s.gatesOwned|0; acSeq=s.acSeq||801; coachOff=!!s.coachOff; lastAward=s.lastAward||null; committed=s.committed||{};
+  gatesOwned=s.gatesOwned|0; acSeq=s.acSeq||801; coachOff=!!s.coachOff; lastAward=s.lastAward||null; committed=s.committed||{}; yearStartSnap=s.yearStartSnap||null;
   owned=[];
   (s.fleet||[]).forEach(f=>{const c=CATALOG.find(x=>x.t===f.t); if(c)owned.push({id:f.id,...c});});
   rots=[]; const dropped=[];
@@ -1504,10 +1507,21 @@ function doUndo(){
 }
 function renderUndo(){
   const b=$('btnUndo'); if(!b)return;
-  const n=undoStack.length;
-  b.disabled=!n;
-  const last=n?undoStack[n-1].label:'';
-  b.textContent = n ? `Undo ${last}` : 'Nothing to undo';
+  b.disabled=!undoStack.length;
+  b.textContent='Undo last action';
+}
+function markYearStart(){
+  try{ const s=snapshot(); delete s.yearStartSnap;   // never nest a checkpoint inside a checkpoint
+    yearStartSnap=JSON.stringify(s); }catch(e){ yearStartSnap=null; }
+}
+function restartYear(){
+  if(!yearStartSnap){ alert('No start-of-year checkpoint yet — this is the first year.');return; }
+  const y=year();
+  if(!confirm(`Restart ${y}? This rewinds to how your airline looked when ${y} began — anything you scheduled, bought, sold or edited this year is undone. Your progress through ${y-1} is kept.`))return;
+  try{ restore(JSON.parse(yearStartSnap)); }catch(e){ return; }
+  undoStack=[]; editIdx=null; schedOpen=null;
+  applyBrand(); syncAC(); syncDest(); renderHub(); renderFleetPanel(); render(); preview();
+  saveLocal();
 }
 
 function saveLocal(){
@@ -2067,18 +2081,11 @@ $('btnNew').onclick=()=>{
   renderHub(); renderFleetPanel(); render(); preview();
   $('resume').style.display='none'; $('viol').style.display='none';
 };
-$('btnRestart').onclick=()=>{
-  if(rots.length||owned.length||year()>YEAR_MIN){
-    if(!confirm('Restart from 1988? Your airline name and colours are kept, but your fleet, network, points and progress are cleared. This cannot be undone.'))return; }
-  const keep={name:airline.name,c1:airline.c1,c2:airline.c2}, hub=HUB.c;
-  clearLocal(); lastSaved=0; startGame();
-  airline=keep; setHub(hub);
-  applyBrand(); syncAC(); syncDest(); renderHub(); renderFleetPanel(); render(); preview();
-  $('resume').style.display='none'; $('viol').style.display='none';
-};
+$('btnRestartYear').onclick=restartYear;
 setInterval(renderSave,15000);
 
 startGame();applyBrand();syncAC();syncDest();renderHub();renderFleetPanel();render();preview();
+markYearStart();
 bootResume();
 $('tclockOut').textContent=fmt(+$('tclock').value);
 
