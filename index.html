@@ -1451,30 +1451,37 @@ renderSchedule(E);
 function renderCity(c,E){
   const s=A[c]; if(!s||c===HUB.c){$('city').style.display='none';return;}
   selCity=c;$('city').style.display='block';
-  const tz=tzD(c), stops=[];
+  const tz=tzD(c), arr=[], dep=[];
   rots.forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     const m=shape(r,ac).marks;
     const flt=flightNo(HUB.c,r.dst,r.dep,r.via||null);
-    // each visit to this city is one ground stop: it arrives from somewhere, departs to somewhere
+    // Arrivals show when the flight LEFT THE HUB; departures show when it gets BACK TO THE HUB.
+    // The whole game is hub scheduling, so each spoke row carries its hub-side counterpart time.
     if(r.dst===c){
-      stops.push({flt,ac:r.ac,from:r.via||HUB.c,to:r.via||HUB.c,arrAt:mod(m.arrDst+tz),depAt:mod(m.depDst+tz)});
+      arr.push({flt,ac:r.ac,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});          // left hub
+      dep.push({flt,ac:r.ac,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});           // back to hub
     }
     if(r.via===c){
-      stops.push({flt,ac:r.ac,from:HUB.c,to:r.dst,arrAt:mod(m.arrVia+tz),depAt:mod(m.depVia+tz)});
-      stops.push({flt,ac:r.ac,from:r.dst,to:HUB.c,arrAt:mod(m.arrVia2+tz),depAt:mod(m.depVia2+tz)});
+      arr.push({flt,ac:r.ac,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
+      dep.push({flt,ac:r.ac,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
+      arr.push({flt,ac:r.ac,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
+      dep.push({flt,ac:r.ac,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
     }
   });
-  stops.sort((a,b)=>a.arrAt-b.arrAt);
+  arr.sort((a,b)=>a.at-b.at); dep.sort((a,b)=>a.at-b.at);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
       <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c).toFixed(1)}× daily</i></div>
       <div><span class="x" id="cityclose">✕ close</span></div></div>
-    <div style="margin-top:0"><h2>Flights serving ${c} <em>${c} local time</em></h2>${stops.length?`<table><tr><th>Flt</th><th>Tail</th><th>Arrives</th><th>from</th><th>Departs</th><th>to</th><th>Dep demand</th></tr>`+
-        stops.map(o=>`<tr><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
-          <td style="color:var(--mag)">${fmt(o.arrAt)}</td><td style="color:var(--ink3)">${o.from}</td>
-          <td style="color:var(--mag)">${fmt(o.depAt)}</td><td style="color:var(--ink3)">${o.to}</td>
-          <td><span class="pill ${pcls(pref(o.depAt))}">${Math.round(pref(o.depAt)*100)}%</span></td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
+    <div class="cols" style="margin-top:0">
+      <div><h2>Arrivals <em>${c} local</em></h2>${arr.length?`<table><tr><th>Flt</th><th>Tail</th><th>Left ${HUB.c}</th><th>Arrives</th></tr>`+
+        arr.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+          <td style="color:var(--ink2)">${fmt(o.hubAt)}</td><td style="color:var(--mag)">${fmt(o.at)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
+      <div><h2>Departures <em>${c} local</em></h2>${dep.length?`<table><tr><th>Flt</th><th>Tail</th><th>Departs</th><th>Back at ${HUB.c}</th></tr>`+
+        dep.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+          <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink2)">${fmt(o.hubAt)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
+    </div>
     ${launched?`<div style="margin-top:16px"><h2>Connecting flow through ${HUB.c}</h2>
       <div class="rowv" style="margin-bottom:8px"><span>${Math.round(fl.out)} pax originate ${c} and connect onward</span><span>${Math.round(fl.in)} pax connect to ${c}</span></div>
       ${mk.length?`<table><tr><th>Market</th><th>Conn</th><th>Detour</th><th>Pax</th><th></th></tr>`+
