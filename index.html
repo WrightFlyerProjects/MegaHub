@@ -309,6 +309,7 @@
       <div class="err" id="err"></div>
       <button id="add">Schedule rotation</button>
       <button class="ghost" id="canceledit" style="display:none">Cancel edit</button>
+      <button class="ghost" id="btnUndo" disabled>Nothing to undo</button>
       <button class="ghost" id="clear">Clear the board</button>
     </div>
 
@@ -345,12 +346,12 @@
 <div class="foot">
   One round per year, 1988 to 2005. Each launch pays traffic points and charges fleet and gate upkeep; the net funds next year's growth.
   Demand and the aircraft catalog step forward on the real schedule years — 1988, 1993, 1997, 2001, 2005.
-  278 airports. Anything closer than 75 nm to your hub is a drive, not a flight. Indiana kept no daylight time in 1988.
+  326 airports. Anything closer than 75 nm to your hub is a drive, not a flight. Indiana kept no daylight time in 1988.
   A bigger terminal is a slower one: minimum connect time rises 5 minutes for every 5 gates you lease.
   Slack absorbs delay. An aircraft turned at the minimum, every time, carries the morning's delay all day — and its own connections stop working.
   Connections are worth most around 30 minutes above the minimum, not at it.
   Customs adds 30 minutes to any connection arriving from abroad. ETOPS constrains twins; trijets and quads crossed oceans freely.
-  Score is passenger-miles on great-circle O&amp;D distance, revealed only when you launch.
+  Score is net passenger-miles — filled seat-miles minus a penalty for empty ones — on great-circle O&amp;D distance, revealed only when you launch.
   A stop en route sells three markets — hub to stop, stop to destination, and hub to destination at a one-stop discount that grows with the detour.
   Local hub traffic boards first; connections take the seats that are left.
   Market share follows an S-curve on frequency — but passengers expect fewer daily options the longer the haul,
@@ -559,9 +560,10 @@ const AIRPORTS=[
 const CATALOG=[
  {t:'ATR-42', seats:46, kts:265,rng:700, cost:6, from:1988},
  {t:'CRJ-200',seats:50, kts:424,rng:1000,cost:7, from:1993},
- {t:'DC-9-30',seats:100,kts:420,rng:1200,cost:10,from:1988},
- {t:'737-300',seats:128,kts:420,rng:1600,cost:13,from:1988},
- {t:'MD-82',  seats:142,kts:438,rng:2200,cost:15,from:1988},
+ {t:'CRJ-700',seats:70, kts:447,rng:1370,cost:9, from:2001},
+ {t:'DC-9-30',seats:100,kts:420,rng:1200,cost:10,from:1988,to:1997},
+ {t:'737-300',seats:128,kts:420,rng:1600,cost:13,from:1988,to:2001},
+ {t:'MD-82',  seats:142,kts:438,rng:2200,cost:15,from:1988,to:2001},
  {t:'727-200',seats:148,kts:430,rng:1900,cost:16,from:1988,to:1997},
  {t:'MD-90',  seats:153,kts:440,rng:2400,cost:17,from:1997},
  {t:'737-700',etops:true,seats:126,kts:450,rng:3000,cost:16,from:2001},
@@ -831,8 +833,10 @@ function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx){
     total+=rs[i].dur+gap;
   }
   if(rs.length>1&&Math.abs(total-DAY)>1)return `${acId}'s rotations overlap`;
-  const cur=gateCurve(all,fleet),peak=Math.max(...cur);
-  if(peak>gates)return `Needs ${peak} gates at ${fmt(cur.indexOf(peak))} — you lease ${gates}`;
+  // Gate-capacity peak is intentionally NOT blocked here. Mid-build, an aircraft with only
+  // its first rotation entered looks like it parks at a gate all day, throwing a false
+  // over-capacity error. Real over-capacity is reported at launch (scheduleViolations),
+  // which sees the finished day and can auto-repair.
   return null;
 }
 
@@ -1068,6 +1072,8 @@ function evaluate(rots,fleet,gates){
 let destSel='', viaSel='', lastE=null, coachOff=false;
 let storageOK=true, saveT=null, lastSaved=0, lastAward=null, committed={};
 let schedSort='dep', schedAsc=true, schedFilter='', schedOpen=null;
+let undoStack=[], undoLabel='';   // #5 undo: snapshots taken before each mutating action
+const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};
 let owned=[], pending={}, gatesOwned=0, gatesPending=0, points=0, cumPm=0,
     rots=[], launched=false, selCity=null, editIdx=null, results=[], acSeq=801;
@@ -1253,18 +1259,18 @@ function renderLanes(E){
       let inner;
       if(!r.via){
         const al=mod(m.arrDst+tzD(r.dst)), dl=mod(m.depDst+tzD(r.dst));
-        inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(al)),r.dst,`${a.id} ${HUB.c}→${r.dst} · arr ${fmt(al)} local (${Math.round(pref(al)*100)}%)`)
+        inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(al)),r.dst,`${a.id} ${HUB.c}→${r.dst} · dep ${fmt(m.depHub)} ${HUB.c} · arr ${fmt(al)} ${r.dst} (${Math.round(pref(al)*100)}%)`)
           +seg(m.arrDst,r.turn,'turn'+(ron?' ron':''),'',`${Math.round(r.turn)}m at ${r.dst}${ron?' · overnight':''}`)
-          +seg(m.depDst,sh.legs[1].t,'ret '+qcls(pref(dl)),HUB.c,`${a.id} ${r.dst}→${HUB.c} · dep ${fmt(dl)} local (${Math.round(pref(dl)*100)}%)`);
+          +seg(m.depDst,sh.legs[1].t,'ret '+qcls(pref(dl)),HUB.c,`${a.id} ${r.dst}→${HUB.c} · arr ${fmt(m.arrHub)} ${HUB.c} · dep ${fmt(dl)} ${r.dst} (${Math.round(pref(dl)*100)}%)`);
       }else{
         const avl=mod(m.arrVia+tzD(r.via)), adl=mod(m.arrDst+tzD(r.dst)), ddl=mod(m.depDst+tzD(r.dst));
-        inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(avl)),r.via,`${a.id} ${HUB.c}→${r.via} · arr ${fmt(avl)} local`)
+        inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(avl)),r.via,`${a.id} ${HUB.c}→${r.via} · dep ${fmt(m.depHub)} ${HUB.c} · arr ${fmt(avl)} ${r.via}`)
           +seg(m.arrVia,VIA_TURN,'turn','',`${VIA_TURN}m stop at ${r.via}`)
           +seg(m.depVia,sh.legs[1].t,'out '+qcls(pref(adl)),r.dst,`${a.id} ${r.via}→${r.dst} · arr ${fmt(adl)} local`)
           +seg(m.arrDst,r.turn,'turn'+(ron?' ron':''),'',`${Math.round(r.turn)}m at ${r.dst}${ron?' · overnight':''}`)
           +seg(m.depDst,sh.legs[2].t,'ret '+qcls(pref(ddl)),r.via,`${a.id} ${r.dst}→${r.via} · dep ${fmt(ddl)} local`)
           +seg(m.arrVia2,VIA_TURN,'turn','',`${VIA_TURN}m stop at ${r.via}`)
-          +seg(m.depVia2,sh.legs[3].t,'ret',HUB.c,`${a.id} ${r.via}→${HUB.c} · arr ${fmt(m.arrHub)}`);
+          +seg(m.depVia2,sh.legs[3].t,'ret',HUB.c,`${a.id} ${r.via}→${HUB.c} · arr ${fmt(m.arrHub)} ${HUB.c}`);
       }
       return `<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${a.id} → ${r.dst}">${inner}</div>`;
     }).join('');
@@ -1358,7 +1364,7 @@ function renderSchedule(E){
 
 function render(){
   const E=evaluate(rots,owned,gatesOwned);
-  renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();
+  renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();renderUndo();
   const cur=E.cur,w=100/DAY;let bars='';
   for(let t=0;t<DAY;t+=5){const v=Math.max(...cur.slice(t,t+5));if(!v)continue;
     const h=Math.min(v,gatesOwned+2)/(gatesOwned+1)*30;
@@ -1367,7 +1373,8 @@ function render(){
   for(let t=0;t<DAY;t+=10){
     const inb=rots.filter(r=>mod(r.arr-t)<40).length,outb=rots.filter(r=>mod(r.dep-t-MCTg())<50).length;
     if(inb>=2&&outb>=2)banks+=`<div class="bank" style="left:${X(t)}%;width:${X(MCTg()+50)}%"></div>`;}
-  $('gates').innerHTML=banks+bars+`<div class="glab">Gate occupancy · peak ${E.peak} of ${gatesOwned} · shaded = connecting bank</div>`;
+  const over=E.peak>gatesOwned;
+  $('gates').innerHTML=banks+bars+`<div class="glab"${over?' style="color:var(--red)"':''}>Gate occupancy · peak ${E.peak} of ${gatesOwned}${over?` · over by ${E.peak-gatesOwned} — lease more or park a plane overnight`:''} · shaded = connecting bank</div>`;
 
 renderSchedule(E);
 
@@ -1477,6 +1484,30 @@ function restore(s){
   lastE=s.last||null;
   pending={}; gatesPending=0; editIdx=null; selCity=null; destSel=''; viaSel='';
   return dropped;
+}
+
+/* Undo: snapshot the world before a mutating action. Reuses the same serialisation
+   as save/resume, so an undo restores fleet, network, points and ledger exactly. */
+function pushUndo(label){
+  try{ undoStack.push({snap:JSON.stringify(snapshot()),label:label||'last action'});
+    if(undoStack.length>UNDO_MAX)undoStack.shift(); }catch(e){}
+  undoLabel=label||'';
+  renderUndo();
+}
+function doUndo(){
+  const prev=undoStack.pop(); if(!prev)return;
+  try{ restore(JSON.parse(prev.snap)); }catch(e){ return; }
+  // restore() resets transient editor state; refresh everything
+  editIdx=null; schedOpen=null;
+  applyBrand(); syncAC(); syncDest(); renderHub(); renderFleetPanel(); render(); preview();
+  renderUndo(); saveLocal();
+}
+function renderUndo(){
+  const b=$('btnUndo'); if(!b)return;
+  const n=undoStack.length;
+  b.disabled=!n;
+  const last=n?undoStack[n-1].label:'';
+  b.textContent = n ? `Undo ${last}` : 'Nothing to undo';
 }
 
 function saveLocal(){
@@ -1853,7 +1884,7 @@ function preview(){
   $('add').disabled=false;
   const dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null;
   if(!dst){$('fcard').innerHTML='<div class="empty">Pick a destination.</div>';$('add').disabled=true;return;}
-  if(document.activeElement!==$('depT'))$('depT').value=fmt(dep);
+  if(document.activeElement!==$('depT'))$('depT').value=hhmmStr(dep);
   if(document.activeElement!==$('turnN'))$('turnN').value=String(turn);
   const sh=shape({dst,via,dep,turn},ac), m=sh.marks, arr=mod(dep+sh.dur);
   const al=mod((via?m.arrDst:m.arrDst)+tzD(dst)), dl=mod(m.depDst+tzD(dst));
@@ -1864,6 +1895,7 @@ function preview(){
   renderAxes();
 }
 const hhmm=v=>{const [h,m]=v.split(':').map(Number);return mod(h*60+m);};
+const hhmmStr=m=>{m=mod(Math.round(m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};  // 24h for <input type=time>
 function mkRot(acId,dst,via,dep,turn){
   const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn},ac);
   return {ac:acId,dst,via:via||null,dep:mod(dep),turn,b:sh.legs[0].t,dur:sh.dur,arr:mod(dep+sh.dur)};
@@ -1885,12 +1917,13 @@ document.addEventListener('click',e=>{
     if(rots.some(r=>r.ac===sell)){alert('That aircraft still flies scheduled rotations. Unschedule them before selling.');return;}
     const val=tradeInValue(a.t);
     if(!confirm(`Sell ${a.id} (${a.t}) back for ${val} points?`))return;
+    pushUndo('sell aircraft');
     owned=owned.filter(x=>x.id!==sell); points+=val;
     launched=false;               // fleet changed -> the year must be re-launched
     syncAC();renderHub();renderFleetPanel();render();preview();saveLocal();return;
   }
   const d=e.target.getAttribute&&e.target.getAttribute('data-del');
-  if(d!==null&&d!==undefined){rots.splice(+d,1);if(editIdx===+d)editIdx=null;launched=false;render();preview();return;}
+  if(d!==null&&d!==undefined){pushUndo('delete');rots.splice(+d,1);if(editIdx===+d)editIdx=null;launched=false;render();preview();return;}
   const ed=e.target.getAttribute&&e.target.getAttribute('data-edit');
   if(ed!==null&&ed!==undefined){
     const r=rots[+ed];editIdx=+ed;
@@ -1929,6 +1962,7 @@ $('startY').addEventListener('change',()=>{
 });
 $('build').onclick=()=>{
   const cost=spendNow(); if(cost>points||!cost)return;
+  pushUndo('purchase');
   pendingList().forEach(x=>owned.push({id:'N'+(acSeq++),...CATALOG.find(c=>c.t===x.t)}));
   gatesOwned+=gatesPending; points-=cost; pending={};gatesPending=0;
   syncAC();syncDest();renderHub();renderFleetPanel();render();preview();};
@@ -1941,6 +1975,7 @@ document.addEventListener('change',e=>{
   if(!a){return;}
   if(!v){e.target.value=a.id;return;}                       // empty -> revert
   if(v!==a.id && owned.some(x=>x.id===v)){alert('That tail number is already in use.');e.target.value=a.id;return;}
+  pushUndo('rename tail');
   const old=a.id; a.id=v;
   rots.forEach(r=>{if(r.ac===old)r.ac=v;});                 // keep rotations attached
   if(editIdx!=null && rots[editIdx] && rots[editIdx].ac===v){/* stays valid */}
@@ -1980,11 +2015,20 @@ $('add').onclick=()=>{
   const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null;
   const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx);
   if(err){$('err').textContent=err;return;}
+  pushUndo(editIdx===null?'schedule':'edit');
   const r=mkRot(acId,dst,via,dep,turn);
   if(editIdx===null)rots.push(r); else{rots[editIdx]=r;editIdx=null;}
   launched=false;render();preview();};
 $('canceledit').onclick=()=>{editIdx=null;preview();};
-$('clear').onclick=()=>{rots=[];launched=false;editIdx=null;selCity=null;$('city').style.display='none';render();preview();};
+$('btnUndo').onclick=doUndo;
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!e.shiftKey){
+    const tag=(document.activeElement&&document.activeElement.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;   // let text fields keep native undo
+    e.preventDefault(); doUndo();
+  }
+});
+$('clear').onclick=()=>{if(!rots.length)return;pushUndo('clear board');rots=[];launched=false;editIdx=null;selCity=null;$('city').style.display='none';render();preview();};
 $('launch').onclick=()=>{
   if(!rots.length||launched)return;
   if(scheduleViolations(rots,owned,gatesOwned).length)return;
@@ -2037,6 +2081,8 @@ setInterval(renderSave,15000);
 startGame();applyBrand();syncAC();syncDest();renderHub();renderFleetPanel();render();preview();
 bootResume();
 $('tclockOut').textContent=fmt(+$('tclock').value);
+
+
 
 
 
