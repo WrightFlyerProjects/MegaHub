@@ -105,6 +105,10 @@
   .sortb.on::after{content:' ▾'}
   .sortb.on.asc::after{content:' ▴'}
   .fltno{color:var(--brand);font-weight:600}
+  .dirchip{display:inline-block;font:600 9px var(--mono);text-transform:uppercase;letter-spacing:.04em;
+    padding:1px 4px;border-radius:3px;vertical-align:middle;margin-right:2px}
+  .dirchip.out{background:rgba(42,108,153,.14);color:var(--brand)}
+  .dirchip.ret{background:rgba(124,138,153,.16);color:var(--ink2)}
   .rotwrap{display:contents}
   .rotwrap .blk{cursor:pointer}
   .rotwrap.ed .blk.out,.rotwrap.ed .blk.ret{outline:1px solid var(--brand);outline-offset:-1px}
@@ -654,14 +658,19 @@ const mod=t=>((t%DAY)+DAY)%DAY;
 /* Deterministic flight number for a rotation. Same carrier, same O&D pair and rough
    time-of-day always yields the same number, so the schedule reads stably.
    Outbound gets an odd number, the return the next even one (industry convention). */
-function flightNo(hubC,dst,dep,via){
+/* Discrete flight numbers per LEG. A rotation's outbound leg gets an odd number;
+   its return gets the next even number (the real-world parent/return convention).
+   dir 'out' -> odd, dir 'ret' -> odd+1. The hub argument is per-leg, so this stays
+   correct once aircraft fly between multiple hubs. */
+function flightNo(hubC,dst,dep,via,dir){
   let h=7;
   const key=hubC+'>'+(via?via+'>':'')+dst;
   for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
   h+=Math.floor(mod(dep)/30);                 // half-hour slot nudges the number
   const base=100+(h%899);                     // 100..998
-  const odd=base%2?base:base+1;               // outbound odd
-  return odd>999?odd-2:odd;
+  let odd=base%2?base:base+1;                 // outbound odd
+  if(odd>998)odd-=2;
+  return dir==='ret' ? odd+1 : odd;           // return is the next even number
 }
 const gauss=(t,mu,sd)=>Math.exp(-((t-mu)**2)/(2*sd*sd));
 /* Demand by local clock time. Two commute peaks (~8am, ~6pm) riding on a daytime
@@ -972,15 +981,15 @@ function productsOf(rots,fleet){
     const hubTz=tzD(HUB.c);
     if(!r.via){
       const bl=sh.legs[0].t;
-      out.push({ri,spoke:r.dst,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:bl,mult:1});
-      inn.push({ri,spoke:r.dst,legs:[caps[1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:sh.legs[1].t,mult:1});
+      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:bl,mult:1});
+      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:sh.legs[1].t,mult:1});
     }else{
       const tm=thruMult(r.via,r.dst);
       const b1=sh.legs[0].t,b2=sh.legs[1].t,b3=sh.legs[2].t,b4=sh.legs[3].t;
-      out.push({ri,spoke:r.via,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrVia+tzD(r.via)),block:b1,mult:1});
-      out.push({ri,spoke:r.dst,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:b1+b2,mult:tm});
-      inn.push({ri,spoke:r.via,legs:[caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depVia2+tzD(r.via)),block:b4,mult:1});
-      inn.push({ri,spoke:r.dst,legs:[caps[2],caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:b3+b4,mult:tm});
+      out.push({ri,dir:'out',spoke:r.via,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrVia+tzD(r.via)),block:b1,mult:1});
+      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:b1+b2,mult:tm});
+      inn.push({ri,dir:'ret',spoke:r.via,legs:[caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depVia2+tzD(r.via)),block:b4,mult:1});
+      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[2],caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:b3+b4,mult:tm});
       pairs.push({ri,i:r.via,j:r.dst,legs:[caps[1]],depLocal:mod(m.depVia+tzD(r.via)),arrLocal:mod(m.arrDst+tzD(r.dst))});
       pairs.push({ri,i:r.dst,j:r.via,legs:[caps[2]],depLocal:mod(m.depDst+tzD(r.dst)),arrLocal:mod(m.arrVia2+tzD(r.via))});
     }
@@ -996,7 +1005,9 @@ function evaluate(rots,fleet,gates){
   const {out,inn,pairs}=productsOf(rots,fleet);
   let pm=0,pax=0;
   // per-rotation passenger attribution: local (hub O&D) vs connecting vs spoke-to-spoke
-  const perRot=rots.map(()=>({local:0,connect:0,pair:0,pm:0}));
+  const perRot=rots.map(()=>({local:0,connect:0,pair:0,pm:0,
+    outLocal:0,outConnect:0,outPair:0,   // hub->spoke leg (the flight's listed departure)
+    retLocal:0,retConnect:0,retPair:0})); // spoke->hub leg (the return)
   const freq={}; [...out].forEach(p=>freq[p.spoke]=(freq[p.spoke]||0)+1);
 
   /* hub local O&D, both directions */
@@ -1017,7 +1028,8 @@ function evaluate(rots,fleet,gates){
       const tot=wts.reduce((a,b)=>a+b,0)||1;
       ps.forEach((p,i)=>{const take=Math.min(roomOf(p),pool*(wts[i]/tot)*otpOf(D[p.ri]||0));
         if(take<=0)return; takeFrom(p,take); pm+=take*dHub[c]; pax+=take; got+=take;
-        if(perRot[p.ri]){perRot[p.ri].local+=take; perRot[p.ri].pm+=take*dHub[c];}});
+        if(perRot[p.ri]){perRot[p.ri].local+=take; perRot[p.ri].pm+=take*dHub[c];
+          if(dir==='out')perRot[p.ri].outLocal+=take; else perRot[p.ri].retLocal+=take;}});
     });
     local.push({c,f,half,cap,market,pax:got,left:Math.max(0,market-got)});
   });
@@ -1030,7 +1042,8 @@ function evaluate(rots,fleet,gates){
     const take=Math.min(roomOf(p),av);
     if(take<=0.5)return;
     takeFrom(p,take); pm+=take*dPair[p.i+p.j]; pax+=take;
-    if(perRot[p.ri]){perRot[p.ri].pair+=take; perRot[p.ri].pm+=take*dPair[p.i+p.j];}
+    if(perRot[p.ri]){perRot[p.ri].pair+=take; perRot[p.ri].pm+=take*dPair[p.i+p.j];
+      perRot[p.ri].outPair+=take;}
     pairRows.push({i:p.i,j:p.j,pax:take});
   });
 
@@ -1062,8 +1075,10 @@ function evaluate(rots,fleet,gates){
     if(take<=0.5)return;
     used[k]=(used[k]||0)+take; takeFrom(c.Ap,take); takeFrom(c.Bp,take);
     pm+=take*c.d; pax+=take;
-    if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;}
-    if(perRot[c.Bp.ri]){perRot[c.Bp.ri].connect+=take;}
+    if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;
+      if(c.Ap.dir==='out')perRot[c.Ap.ri].outConnect+=take; else perRot[c.Ap.ri].retConnect+=take;}
+    if(perRot[c.Bp.ri]){perRot[c.Bp.ri].connect+=take;
+      if(c.Bp.dir==='out')perRot[c.Bp.ri].outConnect+=take; else perRot[c.Bp.ri].retConnect+=take;}
     if(!mk[k])mk[k]={...c,pax:0,n:nItin[k]};
     mk[k].pax+=take;
     (flows[c.i]=flows[c.i]||{out:0,in:0}).out+=take;
@@ -1081,7 +1096,32 @@ function evaluate(rots,fleet,gates){
   const lf=seatMi>0?pm/seatMi:0;
   const delays=rots.map((r,i)=>D[i]||0);
   const otp=rots.length?delays.reduce((a,d)=>a+Math.exp(-d/45),0)/rots.length:1;
-  return {pm,netPm,lf,emptyMi,pax,peak,seatMi,cur,flows,pairRows,perRot,delays,otp,
+  /* Per-LEG flight records: each rotation yields an outbound and a return flight,
+     each with its own number, endpoints, hub+spoke times, seats and load. This is the
+     unit the schedule/timetable UI reads, and it stays correct under multi-hub routing. */
+  const flights=[];
+  rots.forEach((r,i)=>{
+    const ac=fleet.find(a=>a.id===r.ac); if(!ac)return;
+    const m=shape(r,ac).marks, pr=perRot[i]||{};
+    const tzd=tzD(r.dst), hubC=HUB.c, seats=ac.seats, del=Math.round(delays[i]||0);
+    const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
+    // outbound: hub -> (via ->) dst
+    flights.push({ri:i, dir:'out', ac:r.ac, seats,
+      no:flightNo(hubC,r.dst,r.dep,r.via||null,'out'),
+      from:hubC, to:r.dst, via:r.via||null,
+      depHub:mod(m.depHub), depHubLoc:mod(m.depHub),        // hub local = depHub (hub tz baseline)
+      arrSpokeLoc:mod(m.arrDst+tzd),
+      hubTime:mod(m.depHub), spokeTime:mod(m.arrDst+tzd),
+      local:pr.outLocal||0, connect:pr.outConnect||0, pair:pr.outPair||0, delay:del});
+    // return: dst -> (via ->) hub
+    flights.push({ri:i, dir:'ret', ac:r.ac, seats,
+      no:flightNo(hubC,r.dst,r.dep,r.via||null,'ret'),
+      from:r.dst, to:hubC, via:r.via||null,
+      depSpokeLoc:mod(m.depDst+tzd), arrHub:mod(m.arrHub),
+      hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),
+      local:pr.retLocal||0, connect:pr.retConnect||0, pair:pr.retPair||0, delay:del});
+  });
+  return {pm,netPm,lf,emptyMi,pax,peak,seatMi,cur,flows,pairRows,perRot,flights,delays,otp,
     rons:rots.filter(r=>r.turn>240).length,
     vias:rots.filter(r=>r.via).length,
     markets:Object.values(mk).sort((a,b)=>b.pax-a.pax),
@@ -1322,71 +1362,69 @@ function renderSchedule(E){
   const tools=$('schedTools'), cnt=$('schedCount');
   if(!rots.length){ $('rots').innerHTML='<div class="empty">Nothing scheduled.</div>';
     if(tools)tools.style.display='none'; if(cnt)cnt.textContent=''; return; }
-  if(tools)tools.style.display = rots.length>=6 ? 'block' : 'none';   // tools appear once the list grows
-  if(cnt)cnt.textContent = rots.length+' flight'+(rots.length>1?'s':'');
 
-  // build display rows with flight number + per-flight load.
-  // live numbers when the current year is launched; otherwise fall back to last year's
-  // result for the same flight number (if it flew last year), matching how the
-  // Frequency/City panels show "last year" data while you plan the next one.
+  // Each rotation is TWO flights (outbound + return), each a discrete leg with its own
+  // number and load. We read E.flights (per-leg records from the engine). When the current
+  // year isn't launched we fall back to last year's result for the same flight number.
   const lastFlt=(!launched&&lastE&&lastE.perFlt)?lastE.perFlt:null;
-  const rows=rots.map((r,i)=>{
-    const ac=owned.find(a=>a.id===r.ac);
-    const seats=ac?ac.seats:0;
-    const flt=flightNo(HUB.c,r.dst,r.dep,r.via||null);
-    let local=0,connect=0,pair=0,d=Math.round(E.delays[i]||0),src='none';
-    if(launched){
-      const pr=E.perRot&&E.perRot[i]?E.perRot[i]:{local:0,connect:0,pair:0};
-      local=pr.local;connect=pr.connect;pair=pr.pair;src='live';
-    }else if(lastFlt&&lastFlt[flt]){
-      const p=lastFlt[flt]; local=p.local;connect=p.connect;pair=p.pair;d=p.delay;src='last';
-    }
-    const carried=local+connect+pair;
-    const lf=seats?Math.min(1,carried/seats):0;
-    return {r,i,flt,d,carried,local,connect,pair,lf,seats,src};
+  const legs=(E.flights||[]).map(f=>{
+    const r=rots[f.ri];
+    let local=0,connect=0,pair=0,d=f.delay,src='none';
+    if(launched){ local=f.local;connect=f.connect;pair=f.pair;src='live'; }
+    else if(lastFlt&&lastFlt[f.no]){ const p=lastFlt[f.no]; local=p.local;connect=p.connect;pair=p.pair;d=p.delay;src='last'; }
+    const carried=local+connect+pair, lf=f.seats?Math.min(1,carried/f.seats):0;
+    return {f,r,ri:f.ri,flt:f.no,dir:f.dir,from:f.from,to:f.to,via:f.via,
+      dep:f.spokeTime!=null&&f.dir==='ret'?f.spokeTime:f.hubTime,   // the flight's own departure
+      depShown:f.dir==='out'?f.hubTime:f.spokeTime,                 // where this leg departs
+      arrShown:f.dir==='out'?f.spokeTime:f.hubTime,                 // where this leg arrives
+      ron:r.turn>240, d,carried,local,connect,pair,lf,seats:f.seats,src};
   });
+  if(cnt)cnt.textContent = legs.length+' flight'+(legs.length!==1?'s':'');
+  if(tools)tools.style.display = legs.length>=6 ? 'block' : 'none';
 
   // filter
   const q=schedFilter.trim().toLowerCase();
-  let view=rows;
-  if(q)view=rows.filter(x=>
-    (''+x.flt).includes(q) || x.r.dst.toLowerCase().includes(q) ||
-    (x.r.via&&x.r.via.toLowerCase().includes(q)) || x.r.ac.toLowerCase().includes(q));
+  let view=legs;
+  if(q)view=legs.filter(x=>
+    (''+x.flt).includes(q) || x.from.toLowerCase().includes(q) || x.to.toLowerCase().includes(q) ||
+    (x.via&&x.via.toLowerCase().includes(q)) || x.r.ac.toLowerCase().includes(q));
 
-  // sort
+  // sort — keep the outbound/return pair adjacent by default (departure sort)
   const dir=schedAsc?1:-1;
-  const keyed={flt:x=>x.flt, ac:x=>x.r.ac, dst:x=>x.r.dst, dep:x=>x.r.dep, pax:x=>x.lf};
+  const keyed={flt:x=>x.flt, ac:x=>x.r.ac, dst:x=>x.dir==='out'?x.to:x.from, dep:x=>x.depShown, pax:x=>x.lf};
   const kf=keyed[schedSort]||keyed.dep;
   view=view.slice().sort((a,b)=>{const ka=kf(a),kb=kf(b);
-    return (ka<kb?-1:ka>kb?1:a.r.dep-b.r.dep)*dir;});
+    return (ka<kb?-1:ka>kb?1:(a.flt-b.flt))*dir;});
 
-  // mark active sort button
   document.querySelectorAll('.sortb').forEach(b=>{
     b.classList.toggle('on',b.getAttribute('data-sort')===schedSort);
     b.classList.toggle('asc',b.getAttribute('data-sort')===schedSort&&schedAsc);});
 
+  const okey=x=>x.ri+':'+x.dir;   // expand key is per-leg now
   const body=view.map(x=>{
-    const r=x.r, i=x.i, open=schedOpen===i;
-    const via=r.via?` <span style="color:var(--brand)">via ${r.via}</span>`:'';
-    const ron=r.turn>240?' <span style="color:var(--violet)">RON</span>':'';
+    const r=x.r, i=x.ri, open=schedOpen===okey(x);
+    const via=x.via?` <span style="color:var(--brand)">via ${x.via}</span>`:'';
+    const ron=x.ron?' <span style="color:var(--violet)">RON</span>':'';
+    const dirchip=x.dir==='out'
+      ? '<span class="dirchip out">out</span>'
+      : '<span class="dirchip ret">ret</span>';
     const dly=x.d>3?`<span class="dly ${x.d>30?'bad':''}">+${x.d}m</span>`:'<span style="color:var(--ink3)">—</span>';
-    const main=`<tr class="clik ${i===editIdx?'editing':''} ${open?'openrow':''}" data-open="${i}" data-city="${r.dst}">
+    const main=`<tr class="clik ${i===editIdx?'editing':''} ${open?'openrow':''}" data-open="${x.ri}" data-dir="${x.dir}" data-city="${x.dir==='out'?x.to:x.from}">
       <td><span class="fltno">${x.flt}</span></td>
       <td>${r.ac}</td>
-      <td>${r.dst}${via}${ron}</td>
-      <td>${fmt(r.dep)}</td>
-      <td>${fmt(r.arr)}</td>
+      <td>${dirchip} ${x.from}→${x.to}${x.via&&x.via!==x.to?via:''}${ron}</td>
+      <td>${fmt(x.depShown)}</td>
+      <td>${fmt(x.arrShown)}</td>
       <td>${dly}</td>
-      <td><span class="x" data-edit="${i}">✎</span></td>
-      <td><span class="x" data-del="${i}">✕</span></td></tr>`;
+      <td><span class="x" data-edit="${x.ri}">✎</span></td>
+      <td><span class="x" data-del="${x.ri}">✕</span></td></tr>`;
     if(!open)return main;
-    // #11 flight-level results, only when launched (real numbers) — else a hint
     let detail;
     if(x.src==='live'||x.src==='last'){
       const lf=Math.round(x.lf*100);
       const tag = x.src==='last' ? ` <em style="color:var(--ink3);font-style:normal">· ${lastE.year} result</em>` : '';
       detail=`<div class="fldet">
-        <span class="seg">Flight <b>${x.flt}</b> · ${HUB.c}→${r.dst}${r.via?' via '+r.via:''}${tag}</span>
+        <span class="seg">Flight <b>${x.flt}</b> · ${x.from}→${x.to}${x.via&&x.via!==x.to?' via '+x.via:''}${tag}</span>
         <span class="seg"><span class="loadbar"><i style="width:${lf}%"></i></span> <b>${lf}%</b> full (${Math.round(x.carried)} of ${x.seats})</span>
         <br><span class="seg"><b>${Math.round(x.local)}</b> local</span>
         <span class="seg"><b>${Math.round(x.connect)}</b> connecting</span>
@@ -1394,8 +1432,8 @@ function renderSchedule(E){
         ${x.d>3?`<span class="seg" style="color:var(--red)">runs +${x.d}m late</span>`:''}</div>`;
     }else{
       const blocking=scheduleViolations(rots,owned,gatesOwned).length>0;
-      const isNew = !launched && lastE && lastE.perFlt;   // last year existed but this flight is new
-      detail=`<div class="fldet" style="color:var(--ink3)">Flight <b>${x.flt}</b> · ${HUB.c}→${r.dst}${r.via?' via '+r.via:''} · departs ${fmt(r.dep)}, back ${fmt(r.arr)}.<br>`
+      const isNew = !launched && lastE && lastE.perFlt;
+      detail=`<div class="fldet" style="color:var(--ink3)">Flight <b>${x.flt}</b> · ${x.from}→${x.to}${x.via&&x.via!==x.to?' via '+x.via:''} · departs ${fmt(x.depShown)}, arrives ${fmt(x.arrShown)}.<br>`
         + (blocking
             ? `<span style="color:var(--red)">Passenger loads appear once you launch — but the schedule has a problem blocking launch. See the red notice above the board.</span>`
             : isNew
@@ -1455,18 +1493,19 @@ function renderCity(c,E){
   rots.forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     const m=shape(r,ac).marks;
-    const flt=flightNo(HUB.c,r.dst,r.dep,r.via||null);
+    const fOut=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out');   // outbound leg number
+    const fRet=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');   // return leg number
     // Arrivals show when the flight LEFT THE HUB; departures show when it gets BACK TO THE HUB.
     // The whole game is hub scheduling, so each spoke row carries its hub-side counterpart time.
     if(r.dst===c){
-      arr.push({flt,ac:r.ac,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});          // left hub
-      dep.push({flt,ac:r.ac,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});           // back to hub
+      arr.push({flt:fOut,ac:r.ac,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});      // outbound arriving
+      dep.push({flt:fRet,ac:r.ac,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});       // return departing
     }
     if(r.via===c){
-      arr.push({flt,ac:r.ac,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
-      dep.push({flt,ac:r.ac,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
-      arr.push({flt,ac:r.ac,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
-      dep.push({flt,ac:r.ac,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
+      arr.push({flt:fOut,ac:r.ac,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
+      dep.push({flt:fOut,ac:r.ac,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
+      arr.push({flt:fRet,ac:r.ac,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
+      dep.push({flt:fRet,ac:r.ac,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
     }
   });
   arr.sort((a,b)=>a.at-b.at); dep.sort((a,b)=>a.at-b.at);
@@ -1497,9 +1536,8 @@ function renderHubCard(E){
   rots.forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     const m=shape(r,ac).marks;
-    const flt=flightNo(HUB.c,r.dst,r.dep,r.via||null);
-    deps.push({flt,ac:r.ac,at:mod(m.depHub),to:r.via||r.dst});
-    arrs.push({flt,ac:r.ac,at:mod(m.arrHub),from:r.via||r.dst});
+    deps.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'),ac:r.ac,at:mod(m.depHub),to:r.via||r.dst});  // outbound leaves hub
+    arrs.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret'),ac:r.ac,at:mod(m.arrHub),from:r.via||r.dst}); // return arrives hub
   });
   deps.sort((a,b)=>a.at-b.at); arrs.sort((a,b)=>a.at-b.at);
   const peak=E.peak, gates=gatesOwned;
@@ -2050,8 +2088,8 @@ document.addEventListener('click',e=>{
   }
   const op=e.target.closest&&e.target.closest('tr[data-open]');
   if(op&&!e.target.getAttribute('data-edit')&&!e.target.getAttribute('data-del')){
-    const i=+op.getAttribute('data-open');
-    schedOpen = schedOpen===i ? null : i;
+    const key=op.getAttribute('data-open')+':'+op.getAttribute('data-dir');
+    schedOpen = schedOpen===key ? null : key;
     renderCity(op.getAttribute('data-city'),evaluate(rots,owned,gatesOwned));
     render();return;}
   // generic: any element carrying data-city (Frequency & Capture rows, map nodes) opens the city card
@@ -2157,13 +2195,12 @@ $('launch').onclick=()=>{
   const gross=grossPts(Math.max(0,score)), up=upkeepPts(owned,gatesOwned), net=gross-up;
   launched=true; editIdx=null;
   // per-flight results keyed by flight number, so they survive schedule changes into next year
+  // capture per-LEG results keyed by discrete flight number, so each flight (out and
+  // return) carries its own last-year load into next year's planning
   const perFlt={};
-  rots.forEach((r,i)=>{
-    const ac=owned.find(a=>a.id===r.ac); const pr=E.perRot&&E.perRot[i]?E.perRot[i]:null;
-    if(!ac||!pr)return;
-    const key=flightNo(HUB.c,r.dst,r.dep,r.via||null);
-    perFlt[key]={dst:r.dst,via:r.via||null,dep:r.dep,ac:r.ac,seats:ac.seats,
-      local:pr.local,connect:pr.connect,pair:pr.pair,delay:Math.round(E.delays[i]||0)};
+  (E.flights||[]).forEach(f=>{
+    perFlt[f.no]={from:f.from,to:f.to,via:f.via,ac:f.ac,seats:f.seats,
+      local:f.local,connect:f.connect,pair:f.pair,delay:f.delay};
   });
   lastE={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,pax:E.pax,peak:E.peak,markets:E.markets,local:E.local,perFlt};
   // Commit this year exactly once. If the player already launched this year, then
@@ -2202,6 +2239,7 @@ startGame();applyBrand();syncAC();syncDest();renderHub();renderFleetPanel();rend
 markYearStart();
 bootResume();
 $('tclockOut').textContent=fmt(+$('tclock').value);
+
 
 
 
