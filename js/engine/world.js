@@ -45,7 +45,7 @@ const hubOD=c=>Math.round(52*A[c].w*growth);      // per direction
 const spill=(i,j)=>Math.round(spillBase[i+j]*growth);
 
 /* A bigger terminal is a slower terminal: longer walks, more remote stands.
-   1-5 gates: 30m · 6-10: 35m · 11-15: 40m ... capped at 60m. */
+   1-5 gates: 30m · 6-10: 35m · 11-15: 40m, and it stays there: capped at 40m (16+ gates). */
 const mctFor=g=>Math.max(MCT_BASE,Math.min(40,MCT_BASE+5*Math.floor((Math.max(1,g)-1)/5)));
 const mod=t=>((t%DAY)+DAY)%DAY;
 /* Deterministic flight number for a rotation. Same carrier, same O&D pair and rough
