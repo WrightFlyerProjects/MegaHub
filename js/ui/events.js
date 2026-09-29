@@ -207,7 +207,8 @@ $('launch').onclick=()=>{
     perFlt[f.no]={from:f.from,to:f.to,via:f.via,ac:f.ac,seats:f.seats,
       local:f.local,connect:f.connect,pair:f.pair,delay:f.delay};
   });
-  lastE={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,pax:E.pax,peak:E.peak,markets:E.markets,local:E.local,perFlt};
+  lastE={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,pax:E.pax,peak:E.peak,markets:E.markets,local:E.local,perFlt,
+    perTail:tailLoadStats(E),pairRows:(E.pairRows||[]).map(p=>({i:p.i,j:p.j,pax:p.pax}))};
   // Commit this year exactly once. If the player already launched this year, then
   // edited and re-launched, REPLACE the prior result rather than banking it twice.
   const prior=committed[e.year];

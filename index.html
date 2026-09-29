@@ -127,7 +127,8 @@
 </section>
 
 <section class="tabpane" data-pane="fleet" role="tabpanel">
-  <div class="narrow">
+  <div class="fleetgrid">
+  <div>
     <div class="panel step" id="pFleet">
     <div class="step-badge">1</div>
     <h2>Fleet &amp; gates <em id="bpts">—</em></h2>
@@ -150,12 +151,31 @@
     <div id="roster"></div>
     </div>
   </div>
+  <div class="panel" id="fperfPanel">
+    <h2>Fleet performance <em id="fplab"></em></h2>
+    <div id="ftypes"></div>
+    <div id="ftails"></div>
+  </div>
+  </div>
 </section>
 
 <section class="tabpane" data-pane="markets" role="tabpanel">
+  <div class="panel" id="mexpPanel">
+    <h2>Market explorer <em id="mexplab"></em></h2>
+    <select id="mktSel" aria-label="Choose a city to explore"></select>
+    <div id="mexp"></div>
+  </div>
+  <h2 style="margin-top:26px">Opportunities <em id="opplab"></em></h2>
+  <div class="cols3">
+    <div><h3 class="sub3">Biggest unserved cities</h3><div id="oppUnserved"></div></div>
+    <div><h3 class="sub3">Most spill on served cities</h3><div id="oppSpill"></div></div>
+    <div><h3 class="sub3">Connections your banks miss</h3><div id="oppMissed"></div></div>
+  </div>
   <div class="cols">
-  <div><h2>Connecting markets <em id="mklab"></em></h2><div id="markets"></div></div>
-  <div><h2>Frequency &amp; capture <em id="fqlab">click a city</em></h2><div id="freq"></div></div>
+    <div><h2>Connecting markets <em id="mklab"></em></h2>
+      <input type="text" id="mktFind" placeholder="search a market or city code…" autocomplete="off" spellcheck="false" style="margin-bottom:8px">
+      <div id="markets"></div></div>
+    <div><h2>Frequency &amp; capture <em id="fqlab">click a city</em></h2><div id="freq"></div></div>
   </div>
 </section>
 
@@ -224,6 +244,8 @@
 <script src="js/ui/map.js"></script>
 <script src="js/ui/terminal.js"></script>
 <script src="js/ui/editor.js"></script>
+<script src="js/ui/fleetperf.js"></script>
+<script src="js/ui/markets.js"></script>
 <script src="js/ui/tabs.js"></script>
 <script src="js/ui/events.js"></script>
 <script src="js/main.js"></script>

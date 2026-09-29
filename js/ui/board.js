@@ -179,21 +179,8 @@ function render(){
 
 renderSchedule(E);
 
-  const show=launched?E:(lastE||null), stale=!launched&&!!lastE;
-  $('mklab').textContent=stale?`${lastE.year} · last year`:'';
-  $('fqlab').textContent=stale?`${lastE.year} · last year`:'click a city';
-  $('markets').innerHTML=!show?`<div class="empty">Hidden until you launch.</div>`
-    :`<div class="${stale?'stale':''}">`+(show.markets.length?`<table><tr><th>Market</th><th>Itin</th><th>Conn</th><th>Detour</th><th>Pax</th><th></th></tr>`+
-      E.markets.slice(0,12).map(m=>`<tr><td>${m.i}–${m.j}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td>
-        <td>${m.r.toFixed(2)}×</td><td>${Math.round(m.pax)}</td><td><span class="pill ${pcls(m.v)}">${Math.round(m.v*100)}%</span></td></tr>`).join('')+`</table>`
-    :`<div class="empty">No connections. Land two aircraft, wait ${MCTg()}+ minutes, push them out again.</div>`)+`</div>`;
-
-  const fq=launched?E.local:(lastE?lastE.local:null);
-  $('freq').innerHTML=!fq||!fq.length?`<div class="empty">Serve a spoke once and you capture a fraction of it. Serve it four times and you capture most of it.</div>`
-    :`<div class="${stale?'stale':''}"><table><tr><th>Spoke</th><th>Daily</th><th>Share</th><th>Pax</th><th>Left</th></tr>`+
-      fq.slice(0,14).map(l=>`<tr class="clik" data-city="${l.c}"><td>${l.c}</td><td>${l.f}×</td>
-        <td>${Math.round(l.cap*100)}%</td><td>${Math.round(l.pax)}</td>
-        <td style="color:var(--ink3)">${Math.round(l.left)}</td></tr>`).join('')+`</table></div>`;
+  renderMarketsTab(E);
+  renderFleetPerf(E);
   renderCoach();
   renderMap(E); renderTerminal(E);
   saveLocal();
@@ -212,27 +199,27 @@ function renderCity(c,E){
     // Arrivals show when the flight LEFT THE HUB; departures show when it gets BACK TO THE HUB.
     // The whole game is hub scheduling, so each spoke row carries its hub-side counterpart time.
     if(r.dst===c){
-      arr.push({flt:fOut,ac:r.ac,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});      // outbound arriving
-      dep.push({flt:fRet,ac:r.ac,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});       // return departing
+      arr.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});      // outbound arriving
+      dep.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});       // return departing
     }
     if(r.via===c){
-      arr.push({flt:fOut,ac:r.ac,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
-      dep.push({flt:fOut,ac:r.ac,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
-      arr.push({flt:fRet,ac:r.ac,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
-      dep.push({flt:fRet,ac:r.ac,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
+      arr.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
+      dep.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
+      arr.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
+      dep.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
     }
   });
   arr.sort((a,b)=>a.at-b.at); dep.sort((a,b)=>a.at-b.at);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
       <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c).toFixed(1)}× daily</i></div>
-      <div><span class="x" id="cityclose">✕ close</span></div></div>
+      <div><span class="x" data-explore="${c}" style="margin-right:14px">explore market →</span><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
-      <div><h2>Arrivals <em>${c} local</em></h2>${arr.length?`<table><tr><th>Flt</th><th>Tail</th><th>Left ${HUB.c}</th><th>Arrives</th></tr>`+
-        arr.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+      <div><h2>Arrivals <em>${c} local</em></h2>${arr.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Left ${HUB.c}</th><th>Arrives</th></tr>`+
+        arr.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
           <td style="color:var(--ink2)">${fmt(o.hubAt)}</td><td style="color:var(--mag)">${fmt(o.at)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
-      <div><h2>Departures <em>${c} local</em></h2>${dep.length?`<table><tr><th>Flt</th><th>Tail</th><th>Departs</th><th>Back at ${HUB.c}</th></tr>`+
-        dep.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+      <div><h2>Departures <em>${c} local</em></h2>${dep.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Departs</th><th>Back at ${HUB.c}</th></tr>`+
+        dep.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
           <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink2)">${fmt(o.hubAt)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
     </div>
     ${launched?`<div style="margin-top:16px"><h2>Connecting flow through ${HUB.c}</h2>
@@ -250,8 +237,8 @@ function renderHubCard(E){
   rots.forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     const m=shape(r,ac).marks;
-    deps.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'),ac:r.ac,at:mod(m.depHub),to:r.via||r.dst});  // outbound leaves hub
-    arrs.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret'),ac:r.ac,at:mod(m.arrHub),from:r.via||r.dst}); // return arrives hub
+    deps.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'),ac:r.ac,t:ac.t,at:mod(m.depHub),to:r.via||r.dst});  // outbound leaves hub
+    arrs.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret'),ac:r.ac,t:ac.t,at:mod(m.arrHub),from:r.via||r.dst}); // return arrives hub
   });
   deps.sort((a,b)=>a.at-b.at); arrs.sort((a,b)=>a.at-b.at);
   const peak=E.peak, gates=gatesOwned;
@@ -259,11 +246,11 @@ function renderHubCard(E){
       <div><b>${HUB.c} — ${A[HUB.c].n}</b><br><i>your hub · ${rots.length} rotation${rots.length!==1?'s':''} · peak ${peak} of ${gates} gates in use${peak>gates?' · <span style=\'color:var(--red)\'>over capacity</span>':''}</i></div>
       <div><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
-      <div><h2>Departures <em>${HUB.c} local</em></h2>${deps.length?`<table><tr><th>Flt</th><th>Tail</th><th>Departs</th><th>to</th></tr>`+
-        deps.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+      <div><h2>Departures <em>${HUB.c} local</em></h2>${deps.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Departs</th><th>to</th></tr>`+
+        deps.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
           <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink3)">${o.to}</td></tr>`).join('')+`</table>`:`<div class="empty">No departures.</div>`}</div>
-      <div><h2>Arrivals <em>${HUB.c} local</em></h2>${arrs.length?`<table><tr><th>Flt</th><th>Tail</th><th>Arrives</th><th>from</th></tr>`+
-        arrs.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td>
+      <div><h2>Arrivals <em>${HUB.c} local</em></h2>${arrs.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Arrives</th><th>from</th></tr>`+
+        arrs.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
           <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink3)">${o.from}</td></tr>`).join('')+`</table>`:`<div class="empty">No arrivals.</div>`}</div>
     </div>`;
 }

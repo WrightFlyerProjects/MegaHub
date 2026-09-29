@@ -1,11 +1,12 @@
 /* MegaHub · js/engine/evaluate.js — sellable products + evaluate(): local O&D, spoke pairs, hub connections, scoring, per-leg flights */
 /* products = sellable itineraries on a rotation, each consuming one or more legs */
 function productsOf(rots,fleet){
-  const out=[],inn=[],pairs=[];
+  const out=[],inn=[],pairs=[],rotCaps=[];
   rots.forEach((r,ri)=>{
     const ac=fleet.find(a=>a.id===r.ac);
     const sh=shape(r,ac), m=sh.marks;
-    const caps=sh.legs.map(L=>({left:ac.seats,seats:ac.seats}));
+    const caps=sh.legs.map(L=>({left:ac.seats,seats:ac.seats,a:L.a,b:L.b,t:L.t}));
+    rotCaps[ri]=caps;
     const hubTz=tzD(HUB.c);
     if(!r.via){
       const bl=sh.legs[0].t;
@@ -22,7 +23,7 @@ function productsOf(rots,fleet){
       pairs.push({ri,i:r.dst,j:r.via,legs:[caps[2]],depLocal:mod(m.depDst+tzD(r.dst)),arrLocal:mod(m.arrVia2+tzD(r.via))});
     }
   });
-  return {out,inn,pairs};
+  return {out,inn,pairs,rotCaps};
 }
 const roomOf=p=>Math.min(...p.legs.map(l=>l.left));
 const takeFrom=(p,n)=>p.legs.forEach(l=>l.left-=n);
@@ -30,7 +31,7 @@ const takeFrom=(p,n)=>p.legs.forEach(l=>l.left-=n);
 function evaluate(rots,fleet,gates){
   const MCT_G=mctFor(gates);
   const D=delayMap(rots,fleet);
-  const {out,inn,pairs}=productsOf(rots,fleet);
+  const {out,inn,pairs,rotCaps}=productsOf(rots,fleet);
   let pm=0,pax=0;
   // per-rotation passenger attribution: local (hub O&D) vs connecting vs spoke-to-spoke
   const perRot=rots.map(()=>({local:0,connect:0,pair:0,pm:0,
@@ -103,6 +104,9 @@ function evaluate(rots,fleet,gates){
     if(take<=0.5)return;
     used[k]=(used[k]||0)+take; takeFrom(c.Ap,take); takeFrom(c.Bp,take);
     pm+=take*c.d; pax+=take;
+    const shA=dHub[c.i]/(dHub[c.i]+dHub[c.j]);          // attribution only: score is unchanged
+    if(perRot[c.Ap.ri])perRot[c.Ap.ri].pm+=take*c.d*shA;
+    if(perRot[c.Bp.ri])perRot[c.Bp.ri].pm+=take*c.d*(1-shA);
     if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;
       if(c.Ap.dir==='out')perRot[c.Ap.ri].outConnect+=take; else perRot[c.Ap.ri].retConnect+=take;}
     if(perRot[c.Bp.ri]){perRot[c.Bp.ri].connect+=take;
@@ -149,7 +153,11 @@ function evaluate(rots,fleet,gates){
       hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),
       local:pr.retLocal||0, connect:pr.retConnect||0, pair:pr.retPair||0, delay:del});
   });
-  return {pm,netPm,lf,emptyMi,pax,peak,seatMi,cur,flows,pairRows,perRot,flights,delays,otp,
+  /* per-LEG loads: seats and passengers on every leg actually flown (read-only view) */
+  const legs=[];
+  rotCaps.forEach((caps,ri)=>caps.forEach((c,k)=>legs.push({ri,k,a:c.a,b:c.b,t:c.t,seats:c.seats,
+    pax:c.seats-c.left,nm:nm(A[c.a],A[c.b])})));
+  return {pm,netPm,lf,emptyMi,pax,peak,seatMi,cur,flows,pairRows,perRot,flights,delays,otp,legs,
     rons:rots.filter(r=>r.turn>240).length,
     vias:rots.filter(r=>r.via).length,
     markets:Object.values(mk).sort((a,b)=>b.pax-a.pax),

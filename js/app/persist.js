@@ -17,7 +17,8 @@ function snapshot(){
     fleet:owned.map(a=>({id:a.id,t:a.t})),
     rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn})),
     last:lastE?{year:lastE.year,pm:lastE.pm,pax:lastE.pax,peak:lastE.peak,
-      markets:slimMarkets(lastE.markets),local:slimLocal(lastE.local),perFlt:lastE.perFlt||null}:null};
+      markets:slimMarkets(lastE.markets),local:slimLocal(lastE.local),perFlt:lastE.perFlt||null,
+      perTail:lastE.perTail||null,pairRows:lastE.pairRows||null}:null};
 }
 
 /* returns the rotations that no longer fit the rules, having dropped them */
