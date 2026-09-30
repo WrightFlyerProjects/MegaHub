@@ -13,6 +13,7 @@ function renderTerminal(E){
   const half=Math.ceil(G/2), CW=760, gw=Math.min(100,(CW-96)/Math.max(1,half)), gh=54;
   const CY=110, CH=32;                       // concourse band
   const TOPY=CY-14-gh, BOTY=CY+CH+14;       // stand rows, bridges face the concourse
+  const fit=(txt,base,bold)=>Math.min(base,(gw-14)/(Math.max(1,String(txt).length)*(bold?0.64:0.6))).toFixed(2);
   const stand=(g,i,y,isTop)=>{
     const x=48+i*gw, s=occ[g], mid=x+gw/2;
     const bx1=isTop?y+gh:CY+CH, bx2=isTop?CY:y;
@@ -22,11 +23,11 @@ function renderTerminal(E){
       <rect x="${x+3}" y="${y}" width="${gw-8}" height="${gh}" rx="3" fill="${s?typeColor(s.type):'none'}"
         stroke="${s?(s.borrowed?'#B8760F':'none'):TCOL[gtr(g)]}" stroke-width="${s&&s.borrowed?2:gtr(g)?1.5:1}" ${s&&!s.borrowed?'':'stroke-dasharray="3 3"'}>
         <title>G${g+1} · ${tierName[gtr(g)]} gate${s?` · ${s.ac} ${s.type}${s.customs?' · arrived from abroad':''}${s.borrowed?' · borrowing a bigger gate':''}${s.tow?' · towed in':''}`:''}</title></rect>
-      <text x="${mid}" y="${y+15}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" font-weight="600" fill="${s?'#fff':'#7C8A99'}">${s?s.ac:'—'}</text>
-      <text x="${mid}" y="${y+27}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="${s?'rgba(255,255,255,.78)':'#B0B7BE'}">${s?s.type:(gtr(g)?tierName[gtr(g)]:'open')}</text>
+      <text x="${mid}" y="${y+15}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit(s?s.ac:'—',10,1)}" font-weight="600" fill="${s?'#fff':'#7C8A99'}">${s?s.ac:'—'}</text>
+      <text x="${mid}" y="${y+27}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit(s?s.type:(gtr(g)?tierName[gtr(g)]:'open'),8)}" fill="${s?'rgba(255,255,255,.78)':'#B0B7BE'}">${s?s.type:(gtr(g)?tierName[gtr(g)]:'open')}</text>
       ${s?`<line x1="${x+7}" y1="${y+33}" x2="${x+gw-9}" y2="${y+33}" stroke="rgba(255,255,255,.22)" stroke-width="1"/>
-      <text x="${mid}" y="${y+46}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" font-weight="600" fill="#fff">→ ${dstXt}</text>`:''}
-      <text x="${mid}" y="${isTop?y-6:y+gh+13}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="${gtr(g)?TCOL[gtr(g)]:'#7C8A99'}"${gtr(g)?' font-weight="600"':''}>G${g+1}${gtr(g)?' '+TLAB[gtr(g)]:''}</text></g>`;
+      <text x="${mid}" y="${y+46}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit('→ '+dstXt,9,1)}" font-weight="600" fill="#fff">→ ${dstXt}</text>`:''}
+      <text x="${mid}" y="${isTop?y-6:y+gh+13}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${Math.min(9,(gw-2)/((`G${g+1}`+(gtr(g)?' '+TLAB[gtr(g)]:'')).length*0.6)).toFixed(2)}" fill="${gtr(g)?TCOL[gtr(g)]:'#7C8A99'}"${gtr(g)?' font-weight="600"':''}>G${g+1}${gtr(g)?' '+TLAB[gtr(g)]:''}</text></g>`;
   };
   const tops=[...Array(G).keys()].slice(0,half), bots=[...Array(G).keys()].slice(half);
   const H=BOTY+gh+24;
@@ -34,7 +35,8 @@ function renderTerminal(E){
     <rect x="40" y="${CY}" width="${CW-80}" height="${CH}" rx="4" fill="rgba(22,40,60,.07)" stroke="rgba(22,40,60,.18)"/>
     <text x="${CW/2}" y="${CY+21}" text-anchor="middle" font-family="Archivo Narrow,sans-serif" font-size="12" letter-spacing="2" fill="${airline.c1}">${(airline.name||'').toUpperCase()} · ${HUB.c}</text>
     ${tops.map((g,i)=>stand(g,i,TOPY,true)).join('')}
-    ${bots.map((g,i)=>stand(g,i,BOTY,false)).join('')}</svg>`;
+    ${bots.map((g,i)=>stand(g,i,BOTY,false)).join('')}</svg>
+    <div class="typelegend">${CATALOG.filter(c=>owned.some(a=>a.t===c.t)).map(c=>`<span><i style="background:${typeColor(c.t)}"></i>${c.t}</span>`).join('')}</div>`;
   $('termlab').innerHTML=`${Object.keys(occ).length} of ${G} stands occupied at ${fmt(t)} · peak ${E.peak}${TI||TH?` · ${TI} intl · ${TH} heavy`:''}`
     +(homeless?` · <span style="color:var(--red)">${homeless} aircraft with no stand</span>`:'');
 

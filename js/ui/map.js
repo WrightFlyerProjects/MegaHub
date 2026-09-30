@@ -1,9 +1,12 @@
 /* MegaHub · js/ui/map.js — network map render + zoom/pan view */
 /* ---------------- network map ---------------- */
-const TYPE_COLORS=['#2A6C99','#B02A6B','#5A7C33','#B8760F','#5B4B8A','#1F6F6B','#8A4B2A','#4A5B6E'];
+/* One colour per aircraft type, in CATALOG order — never shared. Optimised for measured colour
+   difference (CIE ΔE; 10+ reads as clearly different): types that can fly in the same years differ
+   by ΔE ≥ 26, any two types by ≥ 18. Muted to suit the page, white text at ≥ 4.6:1 contrast. */
+const TYPE_COLORS=['#3875B2','#2B3464','#4D38B2','#6D2F22','#2A842A','#346E79','#392A84','#2A8466','#743D8F','#642B51','#B238B2','#9B6631','#51642B','#A44656'];
 let mapMode='freq';                 // 'freq' | 'lf' (load factor, after launch)
 const lfColor=v=>v>=0.9?'#5A7C33':v>=0.75?'#B8760F':'#B23A3A';
-const typeColor=t=>TYPE_COLORS[CATALOG.findIndex(c=>c.t===t)%TYPE_COLORS.length];
+const typeColor=t=>{const i=CATALOG.findIndex(c=>c.t===t);return i<0?'#4A5B6E':TYPE_COLORS[i%TYPE_COLORS.length];};
 
 /* Map zoom/pan: the SVG's natural coordinate space is 0..W, 0..H. We show a
    sub-rectangle of it — smaller rectangle = more zoom. Pan shifts that rectangle,

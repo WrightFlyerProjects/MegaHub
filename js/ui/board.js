@@ -188,40 +188,34 @@ renderSchedule(E);
   if(selCity)renderCity(selCity,E);
 }
 
+/* Every leg a rotation flies: flight number, origin, destination, and departure/arrival times
+   each in the local time of its own airport (hub local = the hub's clock). A through flight
+   keeps one number across both legs of its direction. */
+function rotLegs(r,ac){
+  const m=shape(r,ac).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
+  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a)),arr:mod(arr+tzD(b)),ac:r.ac,t:ac.t});
+  return r.via
+    ?[L(out,HUB.c,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,HUB.c,m.depVia2,m.arrHub)]
+    :[L(out,HUB.c,r.dst,m.depHub,m.arrDst),L(ret,r.dst,HUB.c,m.depDst,m.arrHub)];
+}
 function renderCity(c,E){
   const s=A[c]; if(!s||c===HUB.c){$('city').style.display='none';return;}
   selCity=c;$('city').style.display='block';
-  const tz=tzD(c), arr=[], dep=[];
-  rots.forEach(r=>{
-    const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
-    const m=shape(r,ac).marks;
-    const fOut=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out');   // outbound leg number
-    const fRet=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');   // return leg number
-    // Arrivals show when the flight LEFT THE HUB; departures show when it gets BACK TO THE HUB.
-    // The whole game is hub scheduling, so each spoke row carries its hub-side counterpart time.
-    if(r.dst===c){
-      arr.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.arrDst+tz),from:r.via||HUB.c, hubAt:mod(m.depHub)});      // outbound arriving
-      dep.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.depDst+tz),to:r.via||HUB.c,   hubAt:mod(m.arrHub)});       // return departing
-    }
-    if(r.via===c){
-      arr.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.arrVia+tz),from:HUB.c,        hubAt:mod(m.depHub)});
-      dep.push({flt:fOut,ac:r.ac,t:ac.t,at:mod(m.depVia+tz),to:r.dst,          hubAt:mod(m.arrHub)});
-      arr.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.arrVia2+tz),from:r.dst,       hubAt:mod(m.depHub)});
-      dep.push({flt:fRet,ac:r.ac,t:ac.t,at:mod(m.depVia2+tz),to:HUB.c,         hubAt:mod(m.arrHub)});
-    }
-  });
-  arr.sort((a,b)=>a.at-b.at); dep.sort((a,b)=>a.at-b.at);
+  const arr=[], dep=[];
+  rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
+    rotLegs(r,ac).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});});
+  arr.sort((a,b)=>a.arr-b.arr); dep.sort((a,b)=>a.dep-b.dep);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
       <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c).toFixed(1)}× daily</i></div>
       <div><span class="x" data-explore="${c}" style="margin-right:14px">explore market →</span><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
-      <div><h2>Arrivals <em>${c} local</em></h2>${arr.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Left ${HUB.c}</th><th>Arrives</th></tr>`+
-        arr.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
-          <td style="color:var(--ink2)">${fmt(o.hubAt)}</td><td style="color:var(--mag)">${fmt(o.at)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
-      <div><h2>Departures <em>${c} local</em></h2>${dep.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Departs</th><th>Back at ${HUB.c}</th></tr>`+
-        dep.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
-          <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink2)">${fmt(o.hubAt)}</td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
+      <div><h2>Arrivals <em>local times</em></h2>${arr.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">From</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+
+        arr.map(o=>`<tr class="clik" data-city="${o.a}"><td><span class="fltno">${o.flt}</span></td><td style="text-align:left">${o.a}</td><td>${fmt(o.dep)}</td><td>${fmt(o.arr)}</td>
+          <td style="text-align:left;padding-left:18px">${o.t} <span style="color:var(--ink3)">${o.ac}</span></td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
+      <div><h2>Departures <em>local times</em></h2>${dep.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">To</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+
+        dep.map(o=>`<tr class="clik" data-city="${o.b}"><td><span class="fltno">${o.flt}</span></td><td style="text-align:left">${o.b}</td><td>${fmt(o.dep)}</td><td>${fmt(o.arr)}</td>
+          <td style="text-align:left;padding-left:18px">${o.t} <span style="color:var(--ink3)">${o.ac}</span></td></tr>`).join('')+`</table>`:`<div class="empty">No service.</div>`}</div>
     </div>
     ${launched?`<div style="margin-top:16px"><h2>Connecting flow through ${HUB.c}</h2>
       <div class="rowv" style="margin-bottom:8px"><span>${Math.round(fl.out)} pax originate ${c} and connect onward</span><span>${Math.round(fl.in)} pax connect to ${c}</span></div>
@@ -235,24 +229,20 @@ function renderHubCard(E){
   selCity=HUB.c; $('city').style.display='block';
   // every hub departure and arrival across the whole schedule, in hub-local time
   const deps=[], arrs=[];
-  rots.forEach(r=>{
-    const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
-    const m=shape(r,ac).marks;
-    deps.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'),ac:r.ac,t:ac.t,at:mod(m.depHub),to:r.via||r.dst});  // outbound leaves hub
-    arrs.push({flt:flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret'),ac:r.ac,t:ac.t,at:mod(m.arrHub),from:r.via||r.dst}); // return arrives hub
-  });
-  deps.sort((a,b)=>a.at-b.at); arrs.sort((a,b)=>a.at-b.at);
+  rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
+    rotLegs(r,ac).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});});
+  deps.sort((a,b)=>a.dep-b.dep); arrs.sort((a,b)=>a.arr-b.arr);
   const peak=E.peak, gates=gatesOwned;
   $('city').innerHTML=`<div class="cityhead">
       <div><b>${HUB.c} — ${A[HUB.c].n}</b><br><i>your hub · ${rots.length} rotation${rots.length!==1?'s':''} · peak ${peak} of ${gates} gates in use${peak>gates?' · <span style=\'color:var(--red)\'>over capacity</span>':''}</i></div>
       <div><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
-      <div><h2>Departures <em>${HUB.c} local</em></h2>${deps.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Departs</th><th>to</th></tr>`+
-        deps.map(o=>`<tr class="clik" data-city="${o.to}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
-          <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink3)">${o.to}</td></tr>`).join('')+`</table>`:`<div class="empty">No departures.</div>`}</div>
-      <div><h2>Arrivals <em>${HUB.c} local</em></h2>${arrs.length?`<table><tr><th>Flt</th><th>Tail</th><th>Type</th><th>Arrives</th><th>from</th></tr>`+
-        arrs.map(o=>`<tr class="clik" data-city="${o.from}"><td><span class="fltno">${o.flt}</span></td><td>${o.ac}</td><td style="color:var(--ink2)">${o.t}</td>
-          <td style="color:var(--mag)">${fmt(o.at)}</td><td style="color:var(--ink3)">${o.from}</td></tr>`).join('')+`</table>`:`<div class="empty">No arrivals.</div>`}</div>
+      <div><h2>Departures <em>local times</em></h2>${deps.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">To</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+
+        deps.map(o=>`<tr class="clik" data-city="${o.b}"><td><span class="fltno">${o.flt}</span></td><td style="text-align:left">${o.b}</td><td>${fmt(o.dep)}</td><td>${fmt(o.arr)}</td>
+          <td style="text-align:left;padding-left:18px">${o.t} <span style="color:var(--ink3)">${o.ac}</span></td></tr>`).join('')+`</table>`:`<div class="empty">No departures.</div>`}</div>
+      <div><h2>Arrivals <em>local times</em></h2>${arrs.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">From</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+
+        arrs.map(o=>`<tr class="clik" data-city="${o.a}"><td><span class="fltno">${o.flt}</span></td><td style="text-align:left">${o.a}</td><td>${fmt(o.dep)}</td><td>${fmt(o.arr)}</td>
+          <td style="text-align:left;padding-left:18px">${o.t} <span style="color:var(--ink3)">${o.ac}</span></td></tr>`).join('')+`</table>`:`<div class="empty">No arrivals.</div>`}</div>
     </div>`;
 }
 
