@@ -187,14 +187,14 @@ function renderRoster(){
 }
 function renderStats(E){
   const mt=owned.length?minTurnHub(owned):0, m=v=>launched?v:'—', cls=launched?'v':'v mask';
-  const e=era();
+  const e=era(), pv=launched?prevResult(e.year):null, vs=d=>d?`${d} vs ${pv.y}`:'';
   $('erabar').innerHTML=`Year ${e.year} · round ${e.round} of ${e.rounds} · data: ${e.data}${e.leap?' <span style="color:var(--mag)">new snapshot</span>':''}`;
   $('hdrPts').innerHTML=`Points<br>${points}`;
   $('cumbar').innerHTML=`Cumulative net<br>${cumPm?Math.round(cumPm).toLocaleString()+' pax-mi':'—'}`;
   $('stats').innerHTML=[
-    ['Net pax-miles',m(Math.round(E.netPm).toLocaleString()),launched?'filled − empty':'launch to reveal',cls],
-    ['Passengers',m(Math.round(E.pax).toLocaleString()),launched?'boarded':'hidden',cls],
-    ['Load factor',m(Math.round((E.lf||0)*100)+'%'),launched?'filled ÷ seats':'hidden',cls],
+    ['Net pax-miles',m(Math.round(E.netPm).toLocaleString()),launched?(pv?vs(yoy(E.netPm,pv.pm)):'filled − empty'):'launch to reveal',cls],
+    ['Passengers',m(Math.round(E.pax).toLocaleString()),launched?(pv&&pv.pax!=null?vs(yoy(E.pax,pv.pax)):'boarded'):'hidden',cls],
+    ['Load factor',m(Math.round((E.lf||0)*100)+'%'),launched?(pv&&pv.lf!=null?vs(yoy(E.lf,pv.lf,true)):'filled ÷ seats'):'hidden',cls],
     ['Peak gates',E.peak+' / '+gatesOwned,`${E.rons} away · ${E.vias} via`,'v'],
     ['Hub turn',mt+'m',typeCount(owned)+' fleet type'+(typeCount(owned)>1?'s':''),'v'],
     ['Min connect',MCTg()+'m',gatesOwned+' gates leased','v'],

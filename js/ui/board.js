@@ -181,6 +181,7 @@ renderSchedule(E);
 
   renderMarketsTab(E);
   renderFleetPerf(E);
+  renderHubStats(E); renderHistory(); renderSeasons();
   renderCoach();
   renderMap(E); renderTerminal(E);
   saveLocal();

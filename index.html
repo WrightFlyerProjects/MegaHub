@@ -60,6 +60,10 @@
   <h2 style="margin:0;padding:10px 12px;border-bottom:1px solid var(--rule)">Network <em id="netlab">—</em></h2>
   <div id="map"></div>
   </div>
+  <div class="viz">
+  <h2 style="margin:0;padding:10px 12px;border-bottom:1px solid var(--rule)">History <em id="histlab"></em></h2>
+  <div id="histchart"></div>
+  </div>
 </section>
 
 <section class="tabpane" data-pane="schedule" role="tabpanel">
@@ -123,6 +127,15 @@
   <div id="term"></div>
   <div class="tbar"><span>Clock</span><input type="range" id="tclock" min="0" max="1435" step="5" value="600"><b id="tclockOut" style="color:var(--mag);width:48px;text-align:right">10:00</b></div>
   <div id="gantt" style="border-top:1px solid var(--rule)"></div>
+  </div>
+  <div class="viz">
+  <h2 style="margin:0;padding:10px 12px;border-bottom:1px solid var(--rule)">Banks <em id="banklab"></em></h2>
+  <div id="bankchart"></div>
+  </div>
+  <div class="cols3" style="margin-top:24px">
+    <div><h2>Tightest connections <em id="tightlab"></em></h2><div id="hubTight"></div></div>
+    <div><h2>Most delay-prone flights</h2><div id="hubDelay"></div></div>
+    <div><h2>Gate utilization</h2><div id="hubGates"></div></div>
   </div>
 </section>
 
@@ -203,6 +216,8 @@
     <div id="saveNote" class="frow" style="margin-top:8px;color:var(--ink3);display:none"></div>
     </div>
   </div>
+  <h2 style="margin-top:28px">Season by season <em id="seasonlab"></em></h2>
+  <div id="seasons"></div>
   <h2 style="margin-top:28px">How MegaHub works</h2>
   <div class="foot">
   One round per year, 1988 to 2005. Each launch pays traffic points and charges fleet and gate upkeep; the net funds next year's growth.
@@ -246,6 +261,8 @@
 <script src="js/ui/editor.js"></script>
 <script src="js/ui/fleetperf.js"></script>
 <script src="js/ui/markets.js"></script>
+<script src="js/ui/hubstats.js"></script>
+<script src="js/ui/history.js"></script>
 <script src="js/ui/tabs.js"></script>
 <script src="js/ui/events.js"></script>
 <script src="js/main.js"></script>

@@ -1,6 +1,8 @@
 /* MegaHub · js/ui/map.js — network map render + zoom/pan view */
 /* ---------------- network map ---------------- */
 const TYPE_COLORS=['#2A6C99','#B02A6B','#5A7C33','#B8760F','#5B4B8A','#1F6F6B','#8A4B2A','#4A5B6E'];
+let mapMode='freq';                 // 'freq' | 'lf' (load factor, after launch)
+const lfColor=v=>v>=0.9?'#5A7C33':v>=0.75?'#B8760F':'#B23A3A';
 const typeColor=t=>TYPE_COLORS[CATALOG.findIndex(c=>c.t===t)%TYPE_COLORS.length];
 
 /* Map zoom/pan: the SVG's natural coordinate space is 0..W, 0..H. We show a
@@ -69,10 +71,12 @@ function renderMap(E){
   });
   // geometry only; symbols are drawn by drawMapLayer() at the current zoom
   const freq={}; rots.forEach(r=>{freq[r.dst]=(freq[r.dst]||0)+1; if(r.via)freq[r.via]=(freq[r.via]||0)+1;});
+  const segLF={}; if(launched)(E.legs||[]).forEach(l=>{const k=[l.a,l.b].sort().join('-');(segLF[k]=segLF[k]||{p:0,s:0});segLF[k].p+=l.pax;segLF[k].s+=l.seats;});
   const segs=Object.values(seg).map(s=>{
     const x1v=X(s.a),y1v=Y(s.a),x2=X(s.b),y2=Y(s.b);
     const mx=(x1v+x2)/2,my=(y1v+y2)/2, dx=x2-x1v,dy=y2-y1v, L=Math.hypot(dx,dy)||1;
-    return {...s,x1:x1v,y1:y1v,x2,y2,cx:mx-dy/L*L*0.10,cy:my+dx/L*L*0.10,
+    const kk=[s.a,s.b].sort().join('-'), lf=segLF[kk]&&segLF[kk].s?segLF[kk].p/segLF[kk].s:null;
+    return {...s,lf,x1:x1v,y1:y1v,x2,y2,cx:mx-dy/L*L*0.10,cy:my+dx/L*L*0.10,
       col:s.f>=4?airline.c1:s.f>=2?airline.c2:'#7C8A99', w:Math.max(1,Math.min(6,0.7+s.seats/260))};
   });
   const nodes=[...codes].filter(c=>c!==HUB.c).map(c=>{const p=spokePax[c]||0;
@@ -91,7 +95,8 @@ function renderMap(E){
       <button id="mapout" title="Zoom out">−</button>
       <button id="mapreset" title="Fit whole network" ${mapZoom===1&&!mapPanX&&!mapPanY?'disabled':''}>⤢</button>
     </div></div>
-    <div class="maplegend">line weight = seats/day · colour = daily frequency (grey 1× · blue 2–3× · magenta 4×+) · zoom in to separate clusters and label more cities</div>`;
+    <div class="maplegend"><span class="mapmode">colour by <span class="x${mapMode==='freq'?' on':''}" data-mapmode="freq">frequency</span> · <span class="x${mapMode==='lf'?' on':''}" data-mapmode="lf">load factor</span></span>
+      line weight = seats/day · ${mapMode==='lf'?(launched?'colour = seats filled (green 90%+ · amber 75–90% · red under 75%)':'load factors appear after you launch — showing frequency'):'colour = daily frequency (grey 1× · blue 2–3× · magenta 4×+)'} · zoom in to separate clusters and label more cities</div>`;
   drawMapLayer();
   const cities=codes.size-1, dailySeats=segs.reduce((a,s)=>a+s.seats,0);
   $('netlab').textContent=`${cities} cities · ${Object.keys(seg).length} segments · ${dailySeats.toLocaleString()} seats/day`;
@@ -111,8 +116,8 @@ function drawMapLayer(){
 
   const gr=grat.map(([x1,y1,x2,y2])=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="rgba(22,40,60,.07)" stroke-width="${f2(s)}"/>`).join('');
   const arcs=segs.map(q=>`<path d="M${f1(q.x1)} ${f1(q.y1)} Q${f1(q.cx)} ${f1(q.cy)} ${f1(q.x2)} ${f1(q.y2)}"
-      fill="none" stroke="${q.col}" stroke-width="${f2(q.w*s)}" stroke-linecap="round" opacity="0.75">
-      <title>${q.a}–${q.b} · ${q.f}× daily · ${q.seats} seats/day</title></path>`).join('');
+      fill="none" stroke="${mapMode==='lf'&&q.lf!=null?lfColor(q.lf):q.col}" stroke-width="${f2(q.w*s)}" stroke-linecap="round" opacity="0.75">
+      <title>${q.a}–${q.b} · ${q.f}× daily · ${q.seats} seats/day${q.lf!=null?` · ${Math.round(q.lf*100)}% full`:''}</title></path>`).join('');
   const dots=nodes.map(n=>`<circle class="mapnode" data-city="${n.c}" cx="${f1(n.x)}" cy="${f1(n.y)}" r="${f2(n.r*s)}" fill="#16283C" opacity="0.82" style="cursor:pointer">
       <title>${n.c} — ${A[n.c].n}${n.pax?' · '+Math.round(n.pax)+' pax':''} · ${n.f}× daily · click for details</title></circle>`).join('');
   const hs=12*s;
@@ -143,3 +148,8 @@ function drawMapLayer(){
   const hubText=`<text x="${f1(hubLab.x)}" y="${f1(hubLab.y)}" font-family="Archivo Narrow,sans-serif" font-weight="700" font-size="${f2(13*s)}" fill="${airline.c1}" style="pointer-events:none">${hub.c}</text>`;
   g.innerHTML=gr+arcs+dots+hubSym+labs.join('')+hubText;
 }
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-mapmode]'); if(!b)return;
+  mapMode=b.getAttribute('data-mapmode'); renderMap(evaluate(rots,owned,gatesOwned));
+});

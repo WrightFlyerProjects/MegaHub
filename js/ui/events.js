@@ -211,10 +211,11 @@ $('launch').onclick=()=>{
     perTail:tailLoadStats(E),pairRows:(E.pairRows||[]).map(p=>({i:p.i,j:p.j,pax:p.pax}))};
   // Commit this year exactly once. If the player already launched this year, then
   // edited and re-launched, REPLACE the prior result rather than banking it twice.
+  const seasonRec={y:e.year,pm:score,lf:E.lf,otp:E.otp,pax:E.pax,fleet:owned.length,gates:gatesOwned,rots:rots.length};
   const prior=committed[e.year];
   if(prior){ cumPm+=score-prior.score; points=points-prior.net+net;
-    const ix=results.findIndex(r=>r.y===e.year); if(ix>=0)results[ix]={y:e.year,pm:score}; }
-  else { cumPm+=score; points=Math.max(0,points+net); results.push({y:e.year,pm:score}); }
+    const ix=results.findIndex(r=>r.y===e.year); if(ix>=0)results[ix]=seasonRec; }
+  else { cumPm+=score; points=Math.max(0,points+net); results.push(seasonRec); }
   committed[e.year]={score,net};
   points=Math.max(0,points);
   lastAward={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,gross,up,net};
