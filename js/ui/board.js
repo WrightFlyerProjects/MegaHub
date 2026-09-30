@@ -1,7 +1,7 @@
 /* MegaHub · js/ui/board.js — rotation lanes, scheduled list, gate conflicts, master render(), city card, hub card */
 /* ---------------- board ---------------- */
 function renderLanes(E){
-  const DL=delayMap(rots,owned);
+  const DL=delayMap(rots,owned,HC);
   // #4 group the board by aircraft type: like aircraft sit together, in catalog order
   const order=CATALOG.map(c=>c.t);
   const lanes=owned.slice().sort((a,b)=>(order.indexOf(a.t)-order.indexOf(b.t))||(a.id<b.id?-1:1));
@@ -11,15 +11,15 @@ function renderLanes(E){
     const dmax=rs.length?Math.max(...rs.map(o=>DL[o.i]||0)):0;
     // each rotation wrapped so a click loads it into the editor (#6)
     const blocks=rs.map(({r,i})=>{
-      const sh=shape(r,a), m=sh.marks, ron=r.turn>240;
+      const sh=shape(r,a,HC), m=sh.marks, ron=r.turn>240;
       let inner;
       if(!r.via){
-        const al=mod(m.arrDst+tzD(r.dst)), dl=mod(m.depDst+tzD(r.dst));
+        const al=mod(m.arrDst+tzD(r.dst,HC)), dl=mod(m.depDst+tzD(r.dst,HC));
         inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(al)),r.dst,`${a.id} ${HUB.c}→${r.dst} · dep ${fmt(m.depHub)} ${HUB.c} · arr ${fmt(al)} ${r.dst} (${Math.round(pref(al)*100)}%)`)
           +seg(m.arrDst,r.turn,'turn'+(ron?' ron':''),'',`${Math.round(r.turn)}m at ${r.dst}${ron?' · overnight':''}`)
           +seg(m.depDst,sh.legs[1].t,'ret '+qcls(pref(dl)),HUB.c,`${a.id} ${r.dst}→${HUB.c} · arr ${fmt(m.arrHub)} ${HUB.c} · dep ${fmt(dl)} ${r.dst} (${Math.round(pref(dl)*100)}%)`);
       }else{
-        const avl=mod(m.arrVia+tzD(r.via)), adl=mod(m.arrDst+tzD(r.dst)), ddl=mod(m.depDst+tzD(r.dst));
+        const avl=mod(m.arrVia+tzD(r.via,HC)), adl=mod(m.arrDst+tzD(r.dst,HC)), ddl=mod(m.depDst+tzD(r.dst,HC));
         inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(avl)),r.via,`${a.id} ${HUB.c}→${r.via} · dep ${fmt(m.depHub)} ${HUB.c} · arr ${fmt(avl)} ${r.via}`)
           +seg(m.arrVia,VIA_TURN,'turn','',`${VIA_TURN}m stop at ${r.via}`)
           +seg(m.depVia,sh.legs[1].t,'out '+qcls(pref(adl)),r.dst,`${a.id} ${r.via}→${r.dst} · arr ${fmt(adl)} local`)
@@ -155,7 +155,7 @@ function gateConflicts(rots,fleet,gates){
 }
 
 function render(){
-  const E=evaluate(rots,owned,gatesOwned);
+  const E=evaluate(rots,owned,gatesOwned,HC);
   renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();renderUndo();
   const cur=E.cur,w=100/DAY;let bars='';
   for(let t=0;t<DAY;t+=5){const v=Math.max(...cur.slice(t,t+5));if(!v)continue;
@@ -192,8 +192,8 @@ renderSchedule(E);
    each in the local time of its own airport (hub local = the hub's clock). A through flight
    keeps one number across both legs of its direction. */
 function rotLegs(r,ac){
-  const m=shape(r,ac).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
-  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a)),arr:mod(arr+tzD(b)),ac:r.ac,t:ac.t});
+  const m=shape(r,ac,HC).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
+  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,HC)),arr:mod(arr+tzD(b,HC)),ac:r.ac,t:ac.t});
   return r.via
     ?[L(out,HUB.c,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,HUB.c,m.depVia2,m.arrHub)]
     :[L(out,HUB.c,r.dst,m.depHub,m.arrDst),L(ret,r.dst,HUB.c,m.depDst,m.arrHub)];
@@ -207,7 +207,7 @@ function renderCity(c,E){
   arr.sort((a,b)=>a.arr-b.arr); dep.sort((a,b)=>a.dep-b.dep);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
-      <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c).toFixed(1)}× daily</i></div>
+      <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c,HC)>=0?'+':''}${tzD(c,HC)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c,HC).toFixed(1)}× daily</i></div>
       <div><span class="x" data-explore="${c}" style="margin-right:14px">explore market →</span><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
       <div><h2>Arrivals <em>local times</em></h2>${arr.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">From</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+

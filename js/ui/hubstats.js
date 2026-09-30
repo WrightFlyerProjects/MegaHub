@@ -90,7 +90,7 @@ function renderHubStats(E){
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-padfix]'); if(!b)return;
   const i=+b.getAttribute('data-padfix'), r=rots[i]; if(!r)return;
-  const E=evaluate(rots,owned,gatesOwned), add=Math.min(30-(r.pad||0),Math.ceil((E.delays[i]||0)/5)*5), pad=(r.pad||0)+add;
+  const E=evaluate(rots,owned,gatesOwned,HC), add=Math.min(30-(r.pad||0),Math.ceil((E.delays[i]||0)/5)*5), pad=(r.pad||0)+add;
   const before=scheduleViolations(rots,owned,gatesOwned,gateTiers).length, keep=rots[i];
   pushUndo('pad '+r.ac);
   rots[i]=mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,pad);

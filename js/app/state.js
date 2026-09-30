@@ -7,6 +7,11 @@ let mapView=null;            // {W,H} natural viewBox of the last-rendered map
 let mapZoom=1, mapPanX=0, mapPanY=0;   // zoom factor and pan offset (in natural viewBox units)
 let replOpen=null;           // id of the aircraft whose replace-picker is open
 let undoStack=[], undoLabel='';   // #5 undo: snapshots taken before each mutating action
+/* The hub the UI is showing. The engine is hub-agnostic and receives HC explicitly;
+   HUB / SPOKES / dHub are display conveniences for the same hub. */
+let HC=null, HUB=null, SPOKES=[], dHub={};
+function setHub(code){HC=makeHub(code); HUB=HC.ap; SPOKES=HC.spokes; dHub=HC.dHub;}
+setHub('DFW');
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};

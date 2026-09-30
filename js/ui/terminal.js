@@ -1,7 +1,7 @@
 /* MegaHub · js/ui/terminal.js — terminal diagram + gate Gantt */
 /* ---------------- terminal ---------------- */
 function renderTerminal(E){
-  E=E||evaluate(rots,owned,gatesOwned);
+  E=E||evaluate(rots,owned,gatesOwned,HC);
   const G=gatesOwned;
   if(!G){$('term').innerHTML='<div class="empty" style="padding:24px 14px">Lease a gate to see your terminal.</div>';$('gantt').innerHTML='';$('termlab').textContent='—';return;}
   const all=gateAssign(rots,owned,G,gateTiers), asg=all.filter(s=>s.gate>=0), homeless=new Set(all.filter(s=>s.gate<0).map(s=>s.ac)).size;

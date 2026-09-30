@@ -42,7 +42,7 @@ function endpointW(thisLocal, otherLocal, blockMin, isDeparture){
 }
 const pw=t=>0.5+0.5*pref(t);
 const capture=(f,half)=>f<=0?0:Math.pow(f,ALPHA)/(Math.pow(f,ALPHA)+Math.pow(half,ALPHA));
-const halfLocal=c=>Math.max(1.0,Math.min(3.0,3.0-dHub[c]/1500));
+const halfLocal=(c,H)=>Math.max(1.0,Math.min(3.0,3.0-H.dHub[c]/1500));
 const fmt=m=>{m=mod(Math.round(m));let h=Math.floor(m/60),mn=m%60;const ap=h<12?'a':'p';
   let h12=h%12; if(h12===0)h12=12;
   return h12+':'+String(mn).padStart(2,'0')+ap;};                 // 12-hour, e.g. 7:05a / 11:30p

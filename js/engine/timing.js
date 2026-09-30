@@ -17,4 +17,4 @@ function legBlock(a,b,ac){
   const gs=Math.max(0.55*ac.kts, ac.kts+windKt(a,b));
   return d/gs*60 + TAXI + CLIMB;
 }
-const block=(dst,ac)=>legBlock(HUB.c,dst,ac);
+const block=(dst,ac,H)=>legBlock(H.c,dst,ac);

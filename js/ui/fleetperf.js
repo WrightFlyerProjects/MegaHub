@@ -25,7 +25,7 @@ function tailOps(){
   owned.forEach(a=>o[a.id]={rots:0,blk:0,nm:0,legs:0,dur:0,maxStage:0,ocean:false});
   rots.forEach(r=>{const a=owned.find(x=>x.id===r.ac); if(!a)return; const s=o[a.id];
     s.rots++; s.dur+=r.dur;
-    shape(r,a).legs.forEach(L=>{const d=nm(A[L.a],A[L.b]); s.blk+=L.t; s.nm+=d; s.legs++;
+    shape(r,a,HC).legs.forEach(L=>{const d=nm(A[L.a],A[L.b]); s.blk+=L.t; s.nm+=d; s.legs++;
       s.maxStage=Math.max(s.maxStage,d); if(A[L.a].ocean||A[L.b].ocean)s.ocean=true;});});
   owned.forEach(a=>{const s=o[a.id], w=freeWindows(rots,owned,a.id);
     s.open=s.rots?(w[0]?w[0].len:0):DAY; s.ground=DAY-s.dur;});
@@ -116,7 +116,7 @@ document.addEventListener('click',e=>{
   const h=e.target.closest&&e.target.closest('[data-fsort]');
   if(h){const key=h.getAttribute('data-fsort');
     if(fpSort===key)fpAsc=!fpAsc; else{fpSort=key;fpAsc=(key==='id'||key==='t');}
-    renderFleetPerf(evaluate(rots,owned,gatesOwned));return;}
+    renderFleetPerf(evaluate(rots,owned,gatesOwned,HC));return;}
   // "replace" in the table uses the roster's existing handler; bring that roster line into view
   const rp=e.target.closest&&e.target.closest('#ftails [data-replopen]');
   if(rp){const id=rp.getAttribute('data-replopen');

@@ -67,7 +67,7 @@ function renderMarketsTab(E){
     +`</optgroup><optgroup label="Not served — biggest hub market first">`
     +uns.map(s=>`<option value="${s.c}"${s.c===c?' selected':''}>${s.c} — ${s.n} · ${2*hubOD(s.c)}/day</option>`).join('')+`</optgroup>`;
 
-  const f=rots.filter(r=>r.dst===c||r.via===c).length, half=halfLocal(c), market=2*hubOD(c);
+  const f=rots.filter(r=>r.dst===c||r.via===c).length, half=halfLocal(c,HC), market=2*hubOD(c);
   const tys=[...new Set(rots.filter(r=>r.dst===c||r.via===c).map(r=>owned.find(a=>a.id===r.ac)).filter(Boolean).map(a=>a.t))];
   const Lc=locals?locals.find(l=>l.c===c):null;
   const kv=(k,v,cls)=>`<tr><td>${k}</td><td class="${cls||''}">${v}</td></tr>`;
@@ -113,7 +113,7 @@ function renderMarketsTab(E){
 
   $('mexplab').textContent=live?`${era().year} results`:stale?`loads: ${lastE.year} · last year`:'loads hidden until you launch';
   $('mexp').innerHTML=`<div class="mexphead"><div><b>${c} — ${A[c].n}</b><br>
-      <i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h${A[c].intl?(PRECLEAR.has(c)?' · international · US preclearance (arrives as domestic)':' · international (customs on connections)'):''}</i></div>
+      <i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c,HC)>=0?'+':''}${tzD(c,HC)/60}h${A[c].intl?(PRECLEAR.has(c)?' · international · US preclearance (arrives as domestic)':' · international (customs on connections)'):''}</i></div>
       <div><span class="x" data-city="${c}" style="margin-right:14px">city card</span><span class="x" data-mdest="${c}">schedule a flight here →</span></div></div>
     <div class="cols" style="margin-top:6px">
       <div><h3 class="sub3">Local market (to/from ${HUB.c})</h3>${loc}${prHtml}</div>
@@ -123,7 +123,7 @@ function renderMarketsTab(E){
 
   /* ---------- opportunities ---------- */
   const unsList=uns.map(s=>{let cp=0; served.forEach(x=>{cp+=connPot(s.c,x)+connPot(x,s.c);});
-      return {c:s.c,d:dHub[s.c],mkt:Math.round(2*hubOD(s.c)*capture(1,halfLocal(s.c))),cp,reach:smallestReach(s.c)};})
+      return {c:s.c,d:dHub[s.c],mkt:Math.round(2*hubOD(s.c)*capture(1,halfLocal(s.c,HC))),cp,reach:smallestReach(s.c)};})
     .sort((a,b)=>(b.mkt+b.cp)-(a.mkt+a.cp)).slice(0,12);
   $('oppUnserved').innerHTML=unsList.length?`<table><tr><th>City</th><th>nm</th><th>Local 1×</th><th>Conn</th><th>Reach</th></tr>`
     +unsList.map(u=>`<tr class="clik" data-mcity="${u.c}"><td>${u.c}</td><td>${Math.round(u.d)}</td><td>${u.mkt}</td><td>${Math.round(u.cp)}</td>
@@ -137,7 +137,7 @@ function renderMarketsTab(E){
     :!spillL.length?`<div class="empty">No meaningful spill.</div>`
     :`<div class="${sc}"><table><tr><th>City</th><th>Daily</th><th>Carried</th><th>Spilled</th><th style="text-align:left;padding-left:10px">Try</th></tr>`
       +spillL.map(l=>{const ll=legLF[l.c], full=ll&&ll.s&&ll.p/ll.s>=0.95;
-        const hint=full?'upgauge — flights are full':l.f<Math.round(halfLocal(l.c))?'add a frequency':'retime for better hours';
+        const hint=full?'upgauge — flights are full':l.f<Math.round(halfLocal(l.c,HC))?'add a frequency':'retime for better hours';
         return `<tr class="clik" data-mcity="${l.c}"><td>${l.c}</td><td>${l.f}×</td><td>${Math.round(l.pax)}</td><td>${Math.round(l.left)}</td><td style="text-align:left;padding-left:10px;color:var(--ink2)">${hint}</td></tr>`;}).join('')
       +`</table></div><div class="note">Spilled = local demand you didn't carry: too few frequencies, too few seats, or poor departure times.</div>`;
 
@@ -168,11 +168,11 @@ function renderMarketsTab(E){
 }
 
 function exploreMarket(c){
-  mktCity=c; renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned));
+  mktCity=c; renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned,HC));
   const p=$('mexpPanel'); if(p&&p.scrollIntoView)p.scrollIntoView({block:'start',behavior:'smooth'});
 }
 $('mktSel').addEventListener('change',e=>exploreMarket(e.target.value));
-$('mktFind').addEventListener('input',e=>{mkFilter=e.target.value;renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned));});
+$('mktFind').addEventListener('input',e=>{mkFilter=e.target.value;renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned,HC));});
 document.addEventListener('click',e=>{
   const m=e.target.closest&&e.target.closest('[data-mcity]');
   if(m){exploreMarket(m.getAttribute('data-mcity'));return;}

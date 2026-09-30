@@ -36,7 +36,7 @@ function restore(s){
   (s.rots||[]).forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac);
     if(!ac||!A[r.dst]||r.dst===HUB.c){dropped.push({...r,why:'aircraft or city missing'});return;}
-    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0);
+    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0,HC);
     if(err){dropped.push({...r,why:err});return;}
     rots.push(mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,r.pad||0));
   });

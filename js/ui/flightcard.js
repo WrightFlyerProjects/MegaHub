@@ -10,7 +10,7 @@ function renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad){
     rows.push(['Routing',`${HUB.c} – ${via} – ${dst}`]);
     rows.push(['O&amp;D distance',`${Math.round(dHub[dst]).toLocaleString()} nm`]);
     rows.push(['Rotation',hm(sh.dur)]);
-    chips.push(['chip',`one-stop keeps ${Math.round(thruMult(via,dst)*100)}%`]);
+    chips.push(['chip',`one-stop keeps ${Math.round(thruMult(via,dst,HC)*100)}%`]);
   }else{
     rows.push(['Distance',`${Math.round(dHub[dst]).toLocaleString()} nm`]);
     rows.push(['Block out',hm(sh.legs[0].t)]);

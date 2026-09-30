@@ -154,5 +154,5 @@ function drawMapLayer(){
 
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-mapmode]'); if(!b)return;
-  mapMode=b.getAttribute('data-mapmode'); renderMap(evaluate(rots,owned,gatesOwned));
+  mapMode=b.getAttribute('data-mapmode'); renderMap(evaluate(rots,owned,gatesOwned,HC));
 });

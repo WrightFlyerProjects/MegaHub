@@ -61,19 +61,19 @@ document.addEventListener('click',e=>{
   if(op&&!e.target.getAttribute('data-edit')&&!e.target.getAttribute('data-del')){
     const key=op.getAttribute('data-open')+':'+op.getAttribute('data-dir');
     schedOpen = schedOpen===key ? null : key;
-    renderCity(op.getAttribute('data-city'),evaluate(rots,owned,gatesOwned));
+    renderCity(op.getAttribute('data-city'),evaluate(rots,owned,gatesOwned,HC));
     render();return;}
   // generic: any element carrying data-city (Frequency & Capture rows, map nodes) opens the city card
   const cityEl=e.target.closest&&e.target.closest('[data-city]');
   if(cityEl){
     const c=cityEl.getAttribute('data-city');
-    if(c&&c!==HUB.c){ renderCity(c,evaluate(rots,owned,gatesOwned));
+    if(c&&c!==HUB.c){ renderCity(c,evaluate(rots,owned,gatesOwned,HC));
       const card=$('city'); if(card&&card.scrollIntoView)card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
-    else if(c===HUB.c){ renderHubCard(evaluate(rots,owned,gatesOwned));
+    else if(c===HUB.c){ renderHubCard(evaluate(rots,owned,gatesOwned,HC));
       const card=$('city'); if(card&&card.scrollIntoView)card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
     return;}
 });
-$('schedFind').addEventListener('input',e=>{schedFilter=e.target.value;renderSchedule(evaluate(rots,owned,gatesOwned));});
+$('schedFind').addEventListener('input',e=>{schedFilter=e.target.value;renderSchedule(evaluate(rots,owned,gatesOwned,HC));});
 $('hub').addEventListener('change',()=>{setHub($('hub').value);rots=[];launched=false;selCity=null;mapReset();
   $('city').style.display='none';destSel='';viaSel='';$('viaQ').value='';syncDest();renderHub();renderFleetPanel();render();preview();});
 
@@ -175,7 +175,7 @@ $('turnN').addEventListener('blur',()=>{const v=Math.max(25,Math.min(720,+$('tur
   $('turn').value=v;$('turnN').value=String(v);preview();});
 $('add').onclick=()=>{
   const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null,pad=+$('padSel').value||0;
-  const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad);
+  const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
   if(err){$('err').textContent=err;return;}
   pushUndo(editIdx===null?'schedule':'edit');
   const r=mkRot(acId,dst,via,dep,turn,pad);
@@ -201,7 +201,7 @@ $('clearac').onclick=()=>{
 $('launch').onclick=()=>{
   if(!rots.length||launched)return;
   if(scheduleViolations(rots,owned,gatesOwned,gateTiers).length)return;
-  const E=evaluate(rots,owned,gatesOwned);
+  const E=evaluate(rots,owned,gatesOwned,HC);
   const e=era();
   const score=E.netPm;                        // NET pax-miles is the score
   const gross=grossPts(Math.max(0,score)), up=upkeepPts(owned,gatesOwned,gateTiers), net=gross-up;

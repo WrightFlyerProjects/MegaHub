@@ -43,7 +43,7 @@ function reachability(ac,c){
 function label(c){return `${c} — ${A[c].n}`;}
 
 /* a good stop is both on the way and worth serving */
-const viaScore=(v,dst)=>thruMult(v,dst)*A[v].w;
+const viaScore=(v,dst)=>thruMult(v,dst,HC)*A[v].w;
 function comboItems(q,ac,forVia){
   q=(q||'').trim().toUpperCase();
   let list=SPOKES.slice();
@@ -63,7 +63,7 @@ function renderCombo(which){
   const items=comboItems(q,ac,forVia);
   const rows=items.map(s=>{
     if(forVia){
-      const tm=thruMult(s.c,destSel), det=((dHub[s.c]+dPair[s.c+destSel])/dHub[destSel]).toFixed(2);
+      const tm=thruMult(s.c,destSel,HC), det=((dHub[s.c]+dPair[s.c+destSel])/dHub[destSel]).toFixed(2);
       return `<div class="citem" data-pick="${s.c}" data-for="via"><span><b>${s.c}</b> <em>${s.n}</em></span>
         <span><em>${det}× · ${2*hubOD(s.c)} pax mkt</em> <span class="badge ${tm>=.7?'b-ok':tm>=.4?'b-via':'b-no'}">keeps ${Math.round(tm*100)}%</span></span></div>`;
     }
@@ -73,7 +73,7 @@ function renderCombo(which){
     const flag=s.intl?'<span class="badge b-via" title="customs adds 30m to inbound connections">intl</span> ':'';
     return `<div class="citem ${r==='no'?'dis':''}" ${r==='no'?'':`data-pick="${s.c}" data-for="dest"`}>
       <span><b>${s.c}</b> <em>${s.n}</em></span>
-      <span><em>${Math.round(dHub[s.c])} nm · ${tzD(s.c)>=0?'+':''}${tzD(s.c)/60}h</em> ${flag}${bd}</span></div>`;
+      <span><em>${Math.round(dHub[s.c])} nm · ${tzD(s.c,HC)>=0?'+':''}${tzD(s.c,HC)/60}h</em> ${flag}${bd}</span></div>`;
   }).join('')||`<div class="citem dis"><em>no match</em></div>`;
   const nonstopOpt=forVia?`<div class="citem" data-pick="" data-for="via"><span><b>— nonstop —</b></span></div>`:'';
   $(forVia?'viaL':'destL').innerHTML=nonstopOpt+rows;
@@ -114,10 +114,10 @@ function preview(){
   if(!dst){$('fcard').innerHTML='<div class="empty">Pick a destination.</div>';$('add').disabled=true;return;}
   if(document.activeElement!==$('depT'))$('depT').value=hhmmStr(dep);
   if(document.activeElement!==$('turnN'))$('turnN').value=String(turn);
-  const sh=shape({dst,via,dep,turn,pad},ac), m=sh.marks, arr=mod(dep+sh.dur);
-  const al=mod((via?m.arrDst:m.arrDst)+tzD(dst)), dl=mod(m.depDst+tzD(dst));
+  const sh=shape({dst,via,dep,turn,pad},ac,HC), m=sh.marks, arr=mod(dep+sh.dur);
+  const al=mod((via?m.arrDst:m.arrDst)+tzD(dst,HC)), dl=mod(m.depDst+tzD(dst,HC));
   renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad);
-  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad);
+  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
   const heads=[];
   if(!verr&&acTier(ac)&&gateTiers.H+gateTiers.I===0)heads.push(`${ac.t} is a widebody — it needs a heavy gate at ${HUB.c}`);
   if(!verr&&customsIn(via||dst)&&gateTiers.I===0)heads.push(`the return from ${via||dst} arrives from abroad — it needs an international gate`);
@@ -132,6 +132,6 @@ const hhmm=v=>{const [h,m]=v.split(':').map(Number);return mod(h*60+m);};
 const hhmmStr=m=>{m=mod(Math.round(m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};  // 24h for <input type=time>
 function mkRot(acId,dst,via,dep,turn,pad){
   pad=pad||0;
-  const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn,pad},ac);
+  const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn,pad},ac,HC);
   return {ac:acId,dst,via:via||null,dep:mod(dep),turn,pad,b:sh.legs[0].t,dur:sh.dur,arr:mod(dep+sh.dur)};
 }

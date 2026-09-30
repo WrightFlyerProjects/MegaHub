@@ -133,7 +133,7 @@ function moveTargets(editIdx){
   const r=rots[editIdx]; if(!r)return [];
   return owned.filter(a=>a.id!==r.ac).map(a=>{
     // validate this rotation on aircraft a, ignoring the rotation's current slot
-    const err=validate(rots,owned,gatesOwned,a.id,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0);
+    const err=validate(rots,owned,gatesOwned,a.id,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0,HC);
     const w=freeWindows(rots,owned,a.id);
     return {id:a.id,t:a.t,ok:!err,why:err||'',
       tag:!rots.some(x=>x.ac===a.id)?'idle':(w.length?`free ${fmt(w[0].start)}`:'full')};
@@ -153,7 +153,7 @@ function renderMoveRow(){
 function doMove(newId){
   if(editIdx===null||!rots[editIdx])return;
   const r=rots[editIdx];
-  const err=validate(rots,owned,gatesOwned,newId,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0);
+  const err=validate(rots,owned,gatesOwned,newId,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0,HC);
   if(err){$('err').textContent=err;return;}
   pushUndo('move route');
   // rebuild the rotation on the new aircraft so block time, duration and arrival
@@ -276,7 +276,7 @@ function renderAxes(){
   $('axis').innerHTML=a;
   const d=destSel;
   if(!d||!A[d]||d===HUB.c){$('axis2').innerHTML='<b>—</b>';return;}
-  const tz=tzD(d);let b=`<b>${d}</b>`;
+  const tz=tzD(d,HC);let b=`<b>${d}</b>`;
   for(let h=0;h<24;h+=2){const loc=Math.floor(mod(h*60+tz)/60);b+=`<i style="left:${X(h*60)}%">${fmtHour(loc)}</i>`;}
   $('axis2').innerHTML=b;
   $('axlab').textContent=`${HUB.c} local · magenta row = ${d} local (${tz>=0?'+':''}${tz/60}h)`;

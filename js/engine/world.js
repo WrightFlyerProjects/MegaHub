@@ -1,4 +1,4 @@
-/* MegaHub · js/engine/world.js — geography (A, nm, dPair, spillBase), hub/era state (HUB, SPOKES, dHub, setHub, setYear, era), tzD, hubOD, spill, mctFor, flightNo */
+/* MegaHub · js/engine/world.js — geography (A, nm, dPair, spillBase), makeHub (hub context), era state (setYear, era), tzD, hubOD, spill, mctFor, flightNo */
 const A={}; AIRPORTS.forEach(a=>A[a.c]=a);
 const rad=x=>x*Math.PI/180;
 function nm(a,b){const dl=rad(b.lat-a.lat),dn=rad(b.lon-a.lon);
@@ -22,13 +22,16 @@ AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{
   spillBase[k]=Math.max(0,Math.round(dem-ns*LF));
 }));
 
-/* ---- mutable world state: hub + era ---- */
-let HUB=A.DFW, SPOKES=[], dHub={}, growth=1, YEAR=YEAR_MIN;
-function setHub(code){
-  HUB=A[code];
-  SPOKES=AIRPORTS.filter(s=>s.c!==code&&nm(A[code],s)>=MIN_STAGE);   // co-terminals aren't spokes
-  dHub={}; SPOKES.forEach(s=>dHub[s.c]=nm(HUB,s));
+/* ---- hub context ----
+   The engine never assumes a single hub: every hub-dependent function takes a hub context
+   H = {c, ap, spokes, dHub} built here. (The UI keeps its own "current hub" for display.) */
+function makeHub(code){
+  const ap=A[code], spokes=AIRPORTS.filter(s=>s.c!==code&&nm(ap,s)>=MIN_STAGE);   // co-terminals aren't spokes
+  const dHub={}; spokes.forEach(s=>dHub[s.c]=nm(ap,s));
+  return {c:code,ap,spokes,dHub};
 }
+/* ---- mutable world state: era (airline-wide) ---- */
+let growth=1, YEAR=YEAR_MIN;
 function setYear(y){YEAR=Math.max(YEAR_MIN,Math.min(YEAR_MAX,y));growth=anchorFor(YEAR).g;}
 const year=()=>YEAR;
 const isLeap=y=>ANCHORS.some(a=>a.y===y);
@@ -38,9 +41,9 @@ const era=()=>({year:YEAR,round:YEAR-startYear+1,rounds:YEAR_MAX-startYear+1,
   data:anchorFor(YEAR).name,dataYear:anchorFor(YEAR).y,growth,leap:isLeap(YEAR),
   frozen:YEAR>DATA_MAX,start:startYear});
 const availTypes=()=>{const y=Math.min(YEAR,DATA_MAX);return CATALOG.filter(c=>y>=c.from&&(!c.to||y<=c.to));};
-setHub('DFW'); setYear(YEAR_MIN);
+setYear(YEAR_MIN);
 
-const tzD=c=>A[c].utc-HUB.utc;                    // spoke local minus hub local
+const tzD=(c,H)=>A[c].utc-H.ap.utc;               // local time at c minus local time at hub H
 const hubOD=c=>Math.round(52*A[c].w*growth);      // per direction
 const spill=(i,j)=>Math.round(spillBase[i+j]*growth);
 

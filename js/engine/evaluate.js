@@ -1,26 +1,26 @@
 /* MegaHub · js/engine/evaluate.js — sellable products + evaluate(): local O&D, spoke pairs, hub connections, scoring, per-leg flights */
 /* products = sellable itineraries on a rotation, each consuming one or more legs */
-function productsOf(rots,fleet){
+function productsOf(rots,fleet,H){
   const out=[],inn=[],pairs=[],rotCaps=[];
   rots.forEach((r,ri)=>{
     const ac=fleet.find(a=>a.id===r.ac);
-    const sh=shape(r,ac), m=sh.marks;
+    const sh=shape(r,ac,H), m=sh.marks;
     const caps=sh.legs.map(L=>({left:ac.seats,seats:ac.seats,a:L.a,b:L.b,t:L.t}));
     rotCaps[ri]=caps;
-    const hubTz=tzD(HUB.c);
+    const hubTz=tzD(H.c,H);
     if(!r.via){
       const bl=sh.legs[0].t;
-      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:bl,mult:1});
-      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:sh.legs[1].t,mult:1});
+      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst,H)),block:bl,mult:1});
+      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst,H)),block:sh.legs[1].t,mult:1});
     }else{
-      const tm=thruMult(r.via,r.dst);
+      const tm=thruMult(r.via,r.dst,H);
       const b1=sh.legs[0].t,b2=sh.legs[1].t,b3=sh.legs[2].t,b4=sh.legs[3].t;
-      out.push({ri,dir:'out',spoke:r.via,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrVia+tzD(r.via)),block:b1,mult:1});
-      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst)),block:b1+b2,mult:tm});
-      inn.push({ri,dir:'ret',spoke:r.via,legs:[caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depVia2+tzD(r.via)),block:b4,mult:1});
-      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[2],caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst)),block:b3+b4,mult:tm});
-      pairs.push({ri,i:r.via,j:r.dst,legs:[caps[1]],depLocal:mod(m.depVia+tzD(r.via)),arrLocal:mod(m.arrDst+tzD(r.dst))});
-      pairs.push({ri,i:r.dst,j:r.via,legs:[caps[2]],depLocal:mod(m.depDst+tzD(r.dst)),arrLocal:mod(m.arrVia2+tzD(r.via))});
+      out.push({ri,dir:'out',spoke:r.via,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrVia+tzD(r.via,H)),block:b1,mult:1});
+      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst,H)),block:b1+b2,mult:tm});
+      inn.push({ri,dir:'ret',spoke:r.via,legs:[caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depVia2+tzD(r.via,H)),block:b4,mult:1});
+      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[2],caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst,H)),block:b3+b4,mult:tm});
+      pairs.push({ri,i:r.via,j:r.dst,legs:[caps[1]],depLocal:mod(m.depVia+tzD(r.via,H)),arrLocal:mod(m.arrDst+tzD(r.dst,H))});
+      pairs.push({ri,i:r.dst,j:r.via,legs:[caps[2]],depLocal:mod(m.depDst+tzD(r.dst,H)),arrLocal:mod(m.arrVia2+tzD(r.via,H))});
     }
   });
   return {out,inn,pairs,rotCaps};
@@ -28,10 +28,10 @@ function productsOf(rots,fleet){
 const roomOf=p=>Math.min(...p.legs.map(l=>l.left));
 const takeFrom=(p,n)=>p.legs.forEach(l=>l.left-=n);
 
-function evaluate(rots,fleet,gates){
+function evaluate(rots,fleet,gates,H){
   const MCT_G=mctFor(gates);
-  const D=delayMap(rots,fleet);
-  const {out,inn,pairs,rotCaps}=productsOf(rots,fleet);
+  const D=delayMap(rots,fleet,H);
+  const {out,inn,pairs,rotCaps}=productsOf(rots,fleet,H);
   let pm=0,pax=0;
   // per-rotation passenger attribution: local (hub O&D) vs connecting vs spoke-to-spoke
   const perRot=rots.map(()=>({local:0,connect:0,pair:0,pm:0,
@@ -43,7 +43,7 @@ function evaluate(rots,fleet,gates){
   const local=[];
   const spokesServed=[...new Set([...out,...inn].map(p=>p.spoke))];
   spokesServed.forEach(c=>{
-    const f=freq[c]||0, half=halfLocal(c), cap=capture(f,half);
+    const f=freq[c]||0, half=halfLocal(c,H), cap=capture(f,half);
     const market=2*hubOD(c), pool=hubOD(c)*cap;
     let got=0;
     [[out,'out'],[inn,'in']].forEach(([arr,dir])=>{
@@ -56,8 +56,8 @@ function evaluate(rots,fleet,gates){
       )*p.mult);
       const tot=wts.reduce((a,b)=>a+b,0)||1;
       ps.forEach((p,i)=>{const take=Math.min(roomOf(p),pool*(wts[i]/tot)*otpOf(D[p.ri]||0));
-        if(take<=0)return; takeFrom(p,take); pm+=take*dHub[c]; pax+=take; got+=take;
-        if(perRot[p.ri]){perRot[p.ri].local+=take; perRot[p.ri].pm+=take*dHub[c];
+        if(take<=0)return; takeFrom(p,take); pm+=take*H.dHub[c]; pax+=take; got+=take;
+        if(perRot[p.ri]){perRot[p.ri].local+=take; perRot[p.ri].pm+=take*H.dHub[c];
           if(dir==='out')perRot[p.ri].outLocal+=take; else perRot[p.ri].retLocal+=take;}});
     });
     local.push({c,f,half,cap,market,pax:got,left:Math.max(0,market-got)});
@@ -88,7 +88,7 @@ function evaluate(rots,fleet,gates){
     const refMin=MCT_G+(A[i].intl?CUSTOMS:0);        // clearing customs takes time
     const ct=mod(Bp.depHub-Ap.arrHub); if(ct<need||ct>MAXCT)return;
     const d=dPair[i+j];
-    const r=(dHub[i]+dHub[j])/d, tol=0.18+0.00022*d;
+    const r=(H.dHub[i]+H.dHub[j])/d, tol=0.18+0.00022*d;
     const del=D[Ap.ri]||0;
     const P=pMake(ct-need-del);                    // late inbound eats the buffer
     const timeF=Math.min(1,Math.pow(0.80,(ct-refMin)/60));
@@ -108,7 +108,7 @@ function evaluate(rots,fleet,gates){
     if(take<=0.5)return;
     used[k]=(used[k]||0)+take; takeFrom(c.Ap,take); takeFrom(c.Bp,take);
     pm+=take*c.d; pax+=take;
-    const shA=dHub[c.i]/(dHub[c.i]+dHub[c.j]);          // attribution only: score is unchanged
+    const shA=H.dHub[c.i]/(H.dHub[c.i]+H.dHub[c.j]);          // attribution only: score is unchanged
     if(perRot[c.Ap.ri])perRot[c.Ap.ri].pm+=take*c.d*shA;
     if(perRot[c.Bp.ri])perRot[c.Bp.ri].pm+=take*c.d*(1-shA);
     if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;
@@ -123,7 +123,7 @@ function evaluate(rots,fleet,gates){
 
   const cur=gateCurve(rots,fleet), peak=rots.length?Math.max(...cur):0;
   const seatMi=rots.reduce((a,r)=>{const ac=fleet.find(x=>x.id===r.ac);
-    return a+shape(r,ac).legs.reduce((s,L)=>s+ac.seats*nm(A[L.a],A[L.b]),0);},0);
+    return a+shape(r,ac,H).legs.reduce((s,L)=>s+ac.seats*nm(A[L.a],A[L.b]),0);},0);
   // NET pax-miles = filled seat-miles minus empty seat-miles.
   // Empty seats are a real cost even with no money: flying capacity you can't sell is
   // punished, so a half-empty widebody at 1am scores negative. EMPTY_W scales the bite.
@@ -138,8 +138,8 @@ function evaluate(rots,fleet,gates){
   const flights=[];
   rots.forEach((r,i)=>{
     const ac=fleet.find(a=>a.id===r.ac); if(!ac)return;
-    const m=shape(r,ac).marks, pr=perRot[i]||{};
-    const tzd=tzD(r.dst), hubC=HUB.c, seats=ac.seats, del=Math.round(delays[i]||0);
+    const m=shape(r,ac,H).marks, pr=perRot[i]||{};
+    const tzd=tzD(r.dst,H), hubC=H.c, seats=ac.seats, del=Math.round(delays[i]||0);
     const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
     // outbound: hub -> (via ->) dst
     flights.push({ri:i, dir:'out', ac:r.ac, seats,
