@@ -16,7 +16,7 @@ function shape(r,ac,H){
       marks:{depHub:r.dep,arrDst,depDst,arrHub}};}
   const b1=legBlock(H.c,r.via,ac)+pad, b2=legBlock(r.via,r.dst,ac),
         b3=legBlock(r.dst,r.via,ac), b4=legBlock(r.via,H.c,ac)+pad,
-        tv=Math.max(VIA_TURN,turnMin(r.via,ac));
+        tv=Math.max(VIA_TURN,turnAt(r.via,ac,H));        // a stop at another of your hubs takes that hub's turn
   const arrVia=r.dep+b1, depVia=arrVia+tv, arrDst=depVia+b2,
         depDst=arrDst+r.turn, arrVia2=depDst+b3, depVia2=arrVia2+tv, arrHub=depVia2+b4;
   return {legs:[{a:H.c,b:r.via,t:b1},{a:r.via,b:r.dst,t:b2},{a:r.dst,b:r.via,t:b3},{a:r.via,b:H.c,t:b4}],

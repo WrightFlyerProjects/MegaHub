@@ -74,8 +74,8 @@ function renderHubStats(E){
   const avg=cur.reduce((a,v)=>a+v,0)/cur.length, idle=cur.reduce((a,v)=>a+Math.max(0,G-v),0)/60;
   const hot=cur.filter(v=>v>=G*0.9).length, spare=G-E.peak;
   const pkT=[];cur.forEach((v,t)=>{if(v===E.peak&&(!pkT.length||t-pkT[pkT.length-1][1]>1))pkT.push([t,t]);else if(v===E.peak)pkT[pkT.length-1][1]=t;});
-  const tc=gateTierCurves(rots,owned), nI=Math.max(0,...tc.i), nH=Math.max(0,...tc.h);
-  const park=gateAssign(rots,owned,G,gateTiers), br=park.filter(s=>s.borrowed), tw=park.filter(s=>s.tow).length;
+  const tc=gateTierCurves(rots,vFleet()), nI=Math.max(0,...tc.i), nH=Math.max(0,...tc.h);
+  const park=gateAssign(rots,vFleet(),G,gateTiers), br=park.filter(s=>s.borrowed), tw=park.filter(s=>s.tow).length;
   const kv=(k,v)=>`<tr><td>${k}</td><td>${v}</td></tr>`;
   $('hubGates').innerHTML=`<table>${kv('Gates leased',G)}${kv('Peak in use',`${E.peak} (${Math.round(E.peak/G*100)}%)`)}
     ${kv('Average in use',`${avg.toFixed(1)} (${Math.round(avg/G*100)}%)`)}${kv('Idle gate-hours / day',Math.round(idle))}
@@ -91,10 +91,10 @@ document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-padfix]'); if(!b)return;
   const i=+b.getAttribute('data-padfix'), r=rots[i]; if(!r)return;
   const E=evalView(), add=Math.min(30-(r.pad||0),Math.ceil((E.delays[i]||0)/5)*5), pad=(r.pad||0)+add;
-  const before=scheduleViolations(rots,owned,gatesOwned,gateTiers).length, keep=rots[i];
+  const before=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers).length, keep=rots[i];
   pushUndo('pad '+r.ac);
   rots[i]=mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,pad);
-  const after=scheduleViolations(rots,owned,gatesOwned,gateTiers);
+  const after=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers);
   if(after.length>before){
     rots[i]=keep; undoStack.pop(); renderUndo();
     const t=after.find(v=>v.kind==='turn'&&v.ac===r.ac);

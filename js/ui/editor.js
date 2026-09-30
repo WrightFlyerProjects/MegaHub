@@ -40,7 +40,7 @@ function reachability(ac,c){
   if(canLeg(ac,HUB.c,c))return 'ok';
   if(SPOKES.some(v=>v.c!==c&&canLeg(ac,HUB.c,v.c)&&canLeg(ac,v.c,c)))return 'via';
   return 'no';}
-function label(c){return `${c} — ${A[c].n}`;}
+function label(c){return `${c} — ${A[c].n}${isOwnHub(c,HC)?' · your hub':''}`;}
 
 /* a good stop is both on the way and worth serving */
 const viaScore=(v,dst)=>thruMult(v,dst,HC)*A[v].w;

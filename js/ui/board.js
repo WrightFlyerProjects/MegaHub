@@ -63,6 +63,14 @@ function renderLanes(E){
     return head+`<div class="lane${a.pair?' paired':''}"><div class="tag"><b>${a.id}</b><i>${a.pair?`⇄ ${a.pair}`:a.t}${dmax>3?` <span class="dly ${dmax>30?'bad':''}">+${Math.round(dmax)}m</span>`:''}</i></div>
       <div class="track"><div class="hr"></div>${bands}${blocks}</div></div>`;
   }).join('')||`<div class="empty" style="padding:14px">No aircraft. Buy some.</div>`;
+  /* other hubs' aircraft on the ground here: read-only (edit them at their home hub) */
+  const vis=visitLegs((l,nx)=>l.b===HC.c&&nx&&nx.a===HC.c);
+  if(vis.length)$('lanes').innerHTML+=`<div class="linegroup">Visiting aircraft · flown by your other hubs — edit them at their home hub</div>`
+    +vis.map(l=>{const n=l.next, out=mod(n.dep+tzD(HC.c,l.hH)), ground=Math.round(n.dep-l.arr);   // home-clock difference = ground time
+      return `<div class="lane visiting"><div class="tag"><b>${l.ac.split(' · ')[0]}</b><i>${l.home} · ${l.t}</i></div><div class="track">`
+        +seg(l.arrHC-l.blk,l.blk,'ret',l.a,`${l.ac} ${l.a}→${HUB.c} · flight ${l.flt} · arr ${fmt(l.arrHC)}`)
+        +seg(l.arrHC,ground,'turn','',`${ground}m on the ground at ${HUB.c}`)
+        +seg(out,n.t,'out',n.b,`${l.ac} ${HUB.c}→${n.b} · flight ${n.no} · dep ${fmt(out)}`)+`</div></div>`;}).join('');
 }
 
 function renderSchedule(E){
@@ -75,12 +83,12 @@ function renderSchedule(E){
   // year isn't launched we fall back to last year's result for the same flight number.
   const lastFlt=(!launched&&lastE&&lastE.perFlt)?lastE.perFlt:null;
   const legs=(E.flights||[]).map(f=>{
-    const r=rots[f.ri];
+    const r=f.visit?{ac:`${f.ac} · ${f.visit}`,turn:0}:rots[f.ri];
     let local=0,connect=0,pair=0,d=f.delay,src='none';
     if(launched){ local=f.local;connect=f.connect;pair=f.pair;src='live'; }
     else if(lastFlt&&lastFlt[f.no]){ const p=lastFlt[f.no]; local=p.local;connect=p.connect;pair=p.pair;d=p.delay;src='last'; }
     const carried=local+connect+pair, lf=f.seats?Math.min(1,carried/f.seats):0;
-    return {f,r,ri:f.ri,flt:f.no,dir:f.dir,from:f.from,to:f.to,via:f.via,
+    return {f,r,ri:f.visit?'v'+f.no:f.ri,flt:f.no,dir:f.dir,from:f.from,to:f.to,via:f.via,
       dep:f.spokeTime!=null&&f.dir==='ret'?f.spokeTime:f.hubTime,   // the flight's own departure
       depShown:f.dir==='out'?f.hubTime:f.spokeTime,                 // where this leg departs
       arrShown:f.dir==='out'?f.spokeTime:f.hubTime,                 // where this leg arrives
@@ -123,8 +131,8 @@ function renderSchedule(E){
       <td>${fmt(x.depShown)}</td>
       <td>${fmt(x.arrShown)}</td>
       <td>${dly}</td>
-      <td><span class="x" data-edit="${x.ri}">✎</span></td>
-      <td><span class="x" data-del="${x.ri}">✕</span></td></tr>`;
+      <td>${x.f.visit?'':`<span class="x" data-edit="${x.ri}">✎</span>`}</td>
+      <td>${x.f.visit?'':`<span class="x" data-del="${x.ri}">✕</span>`}</td></tr>`;
     if(!open)return main;
     let detail;
     if(x.src==='live'||x.src==='last'){
@@ -138,7 +146,7 @@ function renderSchedule(E){
         ${x.pair?`<span class="seg"><b>${Math.round(x.pair)}</b> spoke-to-spoke</span>`:''}
         ${x.d>3?`<span class="seg" style="color:var(--red)">runs +${x.d}m late</span>`:''}</div>`;
     }else{
-      const blocking=scheduleViolations(rots,owned,gatesOwned,gateTiers).length>0;
+      const blocking=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers).length>0;
       const isNew = !launched && lastE && lastE.perFlt;
       detail=`<div class="fldet" style="color:var(--ink3)">Flight <b>${x.flt}</b> · ${x.from}→${x.to}${x.via&&x.via!==x.to?' via '+x.via:''} · departs ${fmt(x.depShown)}, arrives ${fmt(x.arrShown)}.<br>`
         + (blocking
@@ -176,6 +184,7 @@ function gateConflicts(rots,fleet,gates){
 }
 
 function render(){
+  refreshNet();
   dissolvePairs();
   const E=evalView();
   renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();renderUndo();
@@ -192,11 +201,11 @@ function render(){
 
   // #2 — spell out each over-capacity window in plain language
   if(over){
-    const confs=gateConflicts(rots,owned,gatesOwned);
+    const confs=gateConflicts(rots,vFleet(),gatesOwned);   // includes other hubs' aircraft visiting here
     $('gateconf').innerHTML=`<div class="gconf"><h3>Gate over-capacity windows</h3>`
       +confs.map(cf=>{const wrap=cf.end<cf.start?' <span style="color:var(--ink3)">(overnight)</span>':'';
         return `<div class="gcline">${cf.peak} aircraft trying to use ${gatesOwned} gates from <b>${fmt(cf.start)}–${fmt(cf.end)}</b>${wrap}</div>`;}).join('')
-      +`<div class="hint">Retime an arrival or departure inside a window to clear it — e.g. pull an ${fmt(confs[0].end)} departure a few minutes earlier, or park a plane overnight at a spoke.</div></div>`;
+      +(confs.length?`<div class="hint">Retime an arrival or departure inside a window to clear it — e.g. pull an ${fmt(confs[0].end)} departure a few minutes earlier, or park a plane overnight at a spoke.</div>`:"")+`</div>`;
   } else $('gateconf').innerHTML='';
 
 renderSchedule(E);
@@ -216,6 +225,8 @@ renderSchedule(E);
    each in the local time of its own airport (hub local = the hub's clock). A through flight
    keeps one number across both legs of its direction. */
 function rotLegs(r,ac){
+  if(crossHub(r,HC)){const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;
+    return legPlan(r,ac,HC).map(l=>({flt:l.no,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,HC)),arr:mod(l.arr+tzD(l.b,HC)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));}
   const m=shape(r,ac,HC).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
   const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;        // 2-day line: whoever is on this part of the cycle today
   const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,HC)),arr:mod(arr+tzD(b,HC)),ac:tailAt(dep),t:ac.t});
@@ -223,12 +234,24 @@ function rotLegs(r,ac){
     ?[L(out,HUB.c,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,HUB.c,m.depVia2,m.arrHub)]
     :[L(out,HUB.c,r.dst,m.depHub,m.arrDst),L(ret,r.dst,HUB.c,m.depDst,m.arrHub)];
 }
+/* legs flown by OTHER hubs' aircraft that pass the filter; times local to each airport, plus in this hub's clock */
+function visitLegs(filter){
+  if(hubOrder.length<2)return [];
+  const out=[];
+  netHubs().forEach(h=>{ if(h.c===HC.c)return;
+    h.rots.forEach((r,ri)=>{ if(!crossHub(r,h.H))return; const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
+      legPlan(r,ac,h.H).forEach((l,k,L)=>{ if(!filter(l,L[k+1]))return;
+        out.push({flt:l.no,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,h.H)),arr:mod(l.arr+tzD(l.b,h.H)),ac:`${r.ac} · ${h.c}`,t:ac.t,owner:l.owner,
+          depHC:mod(l.dep+tzD(HC.c,h.H)),arrHC:mod(l.arr+tzD(HC.c,h.H)),blk:l.t,home:h.c,key:h.c+':'+ri+':'+k,next:L[k+1]||null,hH:h.H});});});});
+  return out;
+}
 function renderCity(c,E){
   const s=A[c]; if(!s||c===HUB.c){$('city').style.display='none';return;}
   selCity=c;$('city').style.display='block';
   const arr=[], dep=[];
   rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     rotLegs(r,ac).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});});
+  visitLegs(l=>l.owner===HC.c&&(l.a===c||l.b===c)).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});   // this hub's flights on visiting aircraft
   arr.sort((a,b)=>a.arr-b.arr); dep.sort((a,b)=>a.dep-b.dep);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
@@ -256,6 +279,7 @@ function renderHubCard(E){
   const deps=[], arrs=[];
   rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
     rotLegs(r,ac).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});});
+  visitLegs(l=>l.a===HUB.c||l.b===HUB.c).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});   // other hubs' aircraft here
   deps.sort((a,b)=>a.dep-b.dep); arrs.sort((a,b)=>a.arr-b.arr);
   const peak=E.peak, gates=gatesOwned;
   $('city').innerHTML=`<div class="cityhead">

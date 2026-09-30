@@ -4,7 +4,7 @@ function renderTerminal(E){
   E=E||evalView();
   const G=gatesOwned;
   if(!G){$('term').innerHTML='<div class="empty" style="padding:24px 14px">Lease a gate to see your terminal.</div>';$('gantt').innerHTML='';$('termlab').textContent='—';return;}
-  const all=gateAssign(rots,owned,G,gateTiers), asg=all.filter(s=>s.gate>=0), homeless=new Set(all.filter(s=>s.gate<0).map(s=>s.ac)).size;
+  const all=gateAssign(rots,vFleet(),G,gateTiers), asg=all.filter(s=>s.gate>=0), homeless=new Set(all.filter(s=>s.gate<0).map(s=>s.ac)).size;
   const TI=Math.min(G,gateTiers.I), TH=Math.min(G-TI,gateTiers.H), gtr=g=>g<TI?2:g<TI+TH?1:0;
   const TCOL=['rgba(22,40,60,.28)','#B8760F','#5B4B8A'], TLAB=['','HVY','INTL'];
   const t=+$('tclock').value;
@@ -22,9 +22,9 @@ function renderTerminal(E){
     return `<g><line x1="${mid}" y1="${bx1}" x2="${mid}" y2="${bx2}" stroke="rgba(22,40,60,.28)" stroke-width="2"/>
       <rect x="${x+3}" y="${y}" width="${gw-8}" height="${gh}" rx="3" fill="${s?typeColor(s.type):'none'}"
         stroke="${s?(s.borrowed?'#B8760F':'none'):TCOL[gtr(g)]}" stroke-width="${s&&s.borrowed?2:gtr(g)?1.5:1}" ${s&&!s.borrowed?'':'stroke-dasharray="3 3"'}>
-        <title>G${g+1} · ${tierName[gtr(g)]} gate${s?` · ${s.ac} ${s.type}${s.customs?' · arrived from abroad':''}${s.borrowed?' · borrowing a bigger gate':''}${s.tow?' · towed in':''}`:''}</title></rect>
+        <title>G${g+1} · ${tierName[gtr(g)]} gate${s?` · ${s.ac} ${s.type}${s.visit?' · visiting from '+s.visit:''}${s.customs?' · arrived from abroad':''}${s.borrowed?' · borrowing a bigger gate':''}${s.tow?' · towed in':''}`:''}</title></rect>
       <text x="${mid}" y="${y+15}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit(s?s.ac:'—',10,1)}" font-weight="600" fill="${s?'#fff':'#7C8A99'}">${s?s.ac:'—'}</text>
-      <text x="${mid}" y="${y+27}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit(s?s.type:(gtr(g)?tierName[gtr(g)]:'open'),8)}" fill="${s?'rgba(255,255,255,.78)':'#B0B7BE'}">${s?s.type:(gtr(g)?tierName[gtr(g)]:'open')}</text>
+      <text x="${mid}" y="${y+27}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit(s?(s.visit?s.visit+' '+s.type:s.type):(gtr(g)?tierName[gtr(g)]:'open'),8)}" fill="${s?'rgba(255,255,255,.78)':'#B0B7BE'}">${s?(s.visit?s.visit+' '+s.type:s.type):(gtr(g)?tierName[gtr(g)]:'open')}</text>
       ${s?`<line x1="${x+7}" y1="${y+33}" x2="${x+gw-9}" y2="${y+33}" stroke="rgba(255,255,255,.22)" stroke-width="1"/>
       <text x="${mid}" y="${y+46}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${fit('→ '+dstXt,9,1)}" font-weight="600" fill="#fff">→ ${dstXt}</text>`:''}
       <text x="${mid}" y="${isTop?y-6:y+gh+13}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="${Math.min(9,(gw-2)/((`G${g+1}`+(gtr(g)?' '+TLAB[gtr(g)]:'')).length*0.6)).toFixed(2)}" fill="${gtr(g)?TCOL[gtr(g)]:'#7C8A99'}"${gtr(g)?' font-weight="600"':''}>G${g+1}${gtr(g)?' '+TLAB[gtr(g)]:''}</text></g>`;

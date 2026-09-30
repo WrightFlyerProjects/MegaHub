@@ -26,6 +26,7 @@ const dayTail=(t,A,B)=>(((t%(2*DAY))+2*DAY)%(2*DAY))<DAY?A:B;
 function gateCurve(rots,fleet){
   const cur=new Array(DAY).fill(0);
   fleet.forEach(a=>{
+    if(a.visitIv){a.visitIv.forEach(v=>addArc(cur,v.start,v.len));return;}      // visiting aircraft from another hub
     if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap>0)addArc(cur,o.arr,o.gap);});return;}
     const rs=acRots(rots,a.id);if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
@@ -40,6 +41,7 @@ function gateCurve(rots,fleet){
 function groundIntervals(rots,fleet){
   const iv=[];
   fleet.forEach(a=>{
+    if(a.visitIv){a.visitIv.forEach(v=>iv.push({ac:a.id,type:a.t,start:v.start,len:v.len,from:v.from,to:v.to,last:v.last,visit:a.visit}));return;}
     if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap<=0)return;
         const tail=dayTail(o.arr,a.id,a.pair);
         iv.push({ac:tail,acAfter:tail===a.id?a.pair:a.id,type:a.t,start:Math.round(mod(o.arr)),len:Math.round(o.gap),
@@ -166,7 +168,7 @@ function gateAssignTiered(rots,fleet,gates,tiers){
   const W0=DAY, W1=2*DAY, out=[];
   insts.forEach(o=>{
     if(o.end<=W0||o.start>=W1)return;
-    const base={ac:o.iv.ac,type:o.iv.type,from:o.iv.from,to:o.iv.to,last:o.iv.last,need:o.maxNeed,customs:customsIn(o.iv.last)};
+    const base={ac:o.iv.ac,type:o.iv.type,from:o.iv.from,to:o.iv.to,last:o.iv.last,need:o.maxNeed,customs:customsIn(o.iv.last),visit:o.iv.visit};
     if(!o.pieces.length){const f=Math.max(o.start,W0),e=Math.min(o.end,W1);
       out.push({...base,start:Math.round(f-W0),len:Math.round(e-f),gate:-1,gtier:-1});return;}
     o.pieces.forEach((p,j)=>{const pe=j+1<o.pieces.length?o.pieces[j+1].from:o.end;

@@ -2,7 +2,7 @@
 let newHubPick=null, newHubGates=2;
 
 /* violations for any hub, using live data for the one being viewed */
-const hubProblems=c=>c===HC.c?scheduleViolations(rots,owned,gatesOwned,gateTiers):hubViol(c);
+const hubProblems=c=>c===HC.c?scheduleViolations(rots,vFleet(),gatesOwned,gateTiers):hubViol(c);
 
 function renderHubSwitch(){
   const el=$('hubsw'); if(!el)return;
@@ -16,6 +16,14 @@ function renderHubsPanel(){
   const hs=allHubs(), avail=HUBS.filter(c=>!hubOrder.includes(c));
   if(!avail.includes(newHubPick))newHubPick=avail[0]||null;
   const g=Math.max(1,newHubGates), cost=HUB_FEE+g*GATE_COST;
+  /* opening a hub where your other hubs already fly turns those flights into trunks, which then use its gates */
+  let preNote='';
+  if(newHubPick){const hs2=allHubs().map(h=>({H:makeHub(h.c,h.band||0),rots:h.rots,fleet:h.fleet}));
+    const X={H:makeHub(newHubPick,9),rots:[],fleet:[]}; withOthers([...hs2,X].map(h=>h.H),[...hs2,X].map(h=>h.fleet));
+    const vis=visitsAt([...hs2,X],newHubPick);
+    if(vis.length){const cur=gateCurve([],vis), tc=gateTierCurves([],vis), pk=Math.max(...cur), nI=Math.max(0,...tc.i), nH=Math.max(0,...tc.h);
+      const from=[...new Set(vis.map(v=>v.visit))].join(' and ');
+      preNote=`<div class="note" style="color:var(--amber)">${from} already fl${from.includes(' and ')?'y':'ies'} to ${newHubPick}: ${vis.reduce((a,v)=>a+v.visitIv.length,0)} visits a day. Those become trunks and use ${newHubPick}'s gates — up to ${pk} at once${nH?`, ${nH} needing a heavy gate${nI?` (${nI} international)`:''}`:''}.</div>`;}}
   const rows=hs.map(h=>`<tr class="${h.c===HC.c?'hubon':''}" title="${A[h.c].n} · flight numbers ${h.band?h.band+'100–'+h.band+'999':'100–999'}">
       <td><b>${h.c}</b></td><td>${h.fleet.length} ac</td>
       <td>${h.gates} gates${h.tiers.H||h.tiers.I?` <span style="color:var(--ink3)">${h.tiers.H}H·${h.tiers.I}I</span>`:''}</td>
@@ -27,7 +35,7 @@ function renderHubsPanel(){
       <select id="newHubSel">${avail.map(c=>`<option value="${c}"${c===newHubPick?' selected':''}>${c} — ${A[c].n}</option>`).join('')}</select>
       <div class="openrow"><span>Gates</span><span class="stepper"><span data-nhm="1">−</span><span class="n">${g}</span><span data-nhp="1">+</span></span>
         <button id="openHub" ${cost>points?'disabled':''}>Open ${newHubPick||''} · ${cost} pts</button></div>
-      <div class="note">${HUB_FEE} pts to open plus ${GATE_COST} per gate${cost>points?` · you have ${points}`:''}. Each hub runs its own schedule; connecting passengers between two cities are shared, so hubs compete for them. Aircraft are bought at the hub you're viewing, and idle ones can move between hubs from the roster.</div>
+      ${preNote}<div class="note">${HUB_FEE} pts to open plus ${GATE_COST} per gate${cost>points?` · you have ${points}`:''}. Each hub runs its own schedule; connecting passengers between two cities are shared, so hubs compete for them. Aircraft are bought at the hub you're viewing, and idle ones can move between hubs from the roster.</div>
     </div>`:''}`;
 }
 

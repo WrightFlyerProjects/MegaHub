@@ -11,14 +11,24 @@ function circF(i,j){
    a market served by a single itinerary is capped at capture(1,HALF_CONN) of its demand, and the
    itinerary's own value (0.94 × circuity at a perfectly timed connection) caps it again. */
 const connPot=(i,j)=>spill(i,j)*Math.min(capture(1,HALF_CONN),0.94*circF(i,j));
-const servedSet=()=>new Set(rots.flatMap(r=>r.via?[r.dst,r.via]:[r.dst]));
+const servedSet=()=>{const s=new Set();
+  rots.forEach(r=>{if(crossHub(r,HC)){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC); s.add(L[0].b); s.add(L[L.length-1].a);}
+    else (r.via?[r.dst,r.via]:[r.dst]).forEach(c=>s.add(c));});
+  if(hubOrder.length>1)visitLegs(l=>l.a===HC.c||l.b===HC.c).forEach(l=>s.add(l.a===HC.c?l.b:l.a));
+  return s;};
 
 /* Connection timing at the hub, using the same window evaluate() uses:
    minimum connect (+ customs from abroad) up to MAXCT. */
 function connTiming(){
   const inb={}, outb={};
-  rots.forEach((r,ri)=>(r.via?[r.dst,r.via]:[r.dst]).forEach(c=>{
-    (inb[c]=inb[c]||[]).push({ri,t:r.arr}); (outb[c]=outb[c]||[]).push({ri,t:r.dep});}));
+  rots.forEach((r,ri)=>{
+    if(crossHub(r,HC)){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC), f=L[0], l=L[L.length-1];
+      (outb[f.b]=outb[f.b]||[]).push({ri,t:r.dep}); (inb[l.a]=inb[l.a]||[]).push({ri,t:r.arr}); return;}
+    (r.via?[r.dst,r.via]:[r.dst]).forEach(c=>{
+    (inb[c]=inb[c]||[]).push({ri,t:r.arr}); (outb[c]=outb[c]||[]).push({ri,t:r.dep});});});
+  if(hubOrder.length>1)visitLegs(l=>l.a===HC.c||l.b===HC.c).forEach(l=>{                 // other hubs' aircraft here
+    if(l.b===HC.c)(inb[l.a]=inb[l.a]||[]).push({ri:l.key,t:l.arrHC});
+    if(l.a===HC.c)(outb[l.b]=outb[l.b]||[]).push({ri:l.key,t:l.depHC});});
   return {inb,outb,mct:mctFor(gatesOwned)};
 }
 function pairTiming(T,i,j){

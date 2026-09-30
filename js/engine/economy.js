@@ -11,7 +11,7 @@ function tradeInValue(type){
 }
 const totalCost=(f,gates)=>fleetCost(f)+gates*GATE_COST;
 const typeCount=f=>new Set(f.map(x=>x.t)).size;
-const minTurnHub=f=>{const n=typeCount(f);return n<=1?25:n===2?32:40;};
+const minTurnHub=f=>{const n=typeCount(f.filter(x=>!x.visit));return n<=1?25:n===2?32:40;};   // visiting aircraft don't count
 /* points economy. Gross rewards traffic; upkeep is the counterweight that keeps
    the fleet from growing without limit. This is operating cost in points, not dollars. */
 const grossPts=pm=>Math.max(0,Math.min(200,Math.round(pm/60000)));  // takes netPm now

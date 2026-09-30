@@ -31,7 +31,7 @@ function renderFleetPanel(){
   const cost=spendNow(), over=cost>points;
   $('gnum').textContent=gatesOwned+gatesPending;
   /* gate tiers: counts at each tier, what the schedule needs at peak, and pending upfits */
-  const tn=tierNext(), tc=gateTierCurves(rots,owned), needI=Math.max(0,...tc.i), needH=Math.max(0,...tc.h);
+  const tn=tierNext(), tc=gateTierCurves(rots,vFleet()), needI=Math.max(0,...tc.i), needH=Math.max(0,...tc.h);
   const std=gatesOwned+gatesPending-tn.H-tn.I;
   $('tiercat').innerHTML=`<div><b>Heavy</b><i>widebodies (200+ seats) · upkeep 2/yr</i></div>
       <span style="color:var(--ink3);font-size:11px">+${GATE_UP_H}pt</span>
@@ -218,7 +218,7 @@ function renderStats(E){
     ['On-time',(multi?TT.rots:rots.length)?Math.round(TT.otp*100)+'%':'—',
       rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m`:'no flying','v']
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
-  const viol=scheduleViolations(rots,owned,gatesOwned,gateTiers);
+  const viol=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers);
   if(viol.length){
     const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier');
     $('viol').style.display='block';

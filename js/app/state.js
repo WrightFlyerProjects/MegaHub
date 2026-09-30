@@ -19,7 +19,12 @@ const HUB_FEE=40;                                          // points to open a h
 function setHub(code){
   // a one-hub airline re-homed directly (as before multi-hub) keeps its hub list in step
   if(hubOrder.length===1&&!hubOrder.includes(code)&&!hubStore[code]){delete hubStore[hubOrder[0]]; delete lastHubs[hubOrder[0]]; hubOrder=[code];}
-  HC=makeHub(code,(hubStore[code]&&hubStore[code].band)||0); HUB=HC.ap; SPOKES=HC.spokes; dHub=HC.dHub;}
+  HC=makeHub(code,(hubStore[code]&&hubStore[code].band)||0); HUB=HC.ap; SPOKES=HC.spokes; dHub=HC.dHub; refreshNet();}
+/* the viewed hub's knowledge of the airline's other hubs (cross-hub flying) */
+function netOthers(code){const o={}; hubOrder.forEach((c,k)=>{if(c===code)return;
+  const f=(HC&&c===HC.c)?owned:(hubStore[c]?hubStore[c].fleet:[]);
+  o[c]={band:(hubStore[c]&&hubStore[c].band)||0,rank:k,mt:minTurnHub(f)};}); return o;}
+function refreshNet(){if(!HC)return; HC.others=netOthers(HC.c); HC.rank=Math.max(0,hubOrder.indexOf(HC.c));}
 setHub('DFW');
 /* park the viewed hub's working state in the store */
 function stashView(){if(!HC)return; const b=(hubStore[HC.c]&&hubStore[HC.c].band)||0;
@@ -38,26 +43,35 @@ function withHub(code,fn){if(code===HC.c)return fn(); const back=HC.c; stashView
   try{return fn();}finally{stashView(); loadView(back);}}
 /* every hub, current data, with its engine context */
 function allHubs(){stashView(); return hubOrder.map(c=>({c,...hubStore[c],H:makeHub(c,hubStore[c].band||0)}));}
+/* every hub, each context aware of the others (for cross-hub flying) */
+function netHubs(){const hs=allHubs(); withOthers(hs.map(h=>h.H),hs.map(h=>h.fleet)); return hs;}
+const netList=hs=>hs.map(h=>({H:h.H,rots:h.rots,fleet:h.fleet}));
+/* a hub's fleet for gate purposes: its own aircraft plus other hubs' aircraft visiting it */
+const vFleetOf=(c,hs)=>{hs=hs||netHubs(); const h=hs.find(x=>x.c===c); return h.fleet.concat(visitsAt(netList(hs),c));};
+const vFleet=()=>{if(hubOrder.length<2)return owned; return vFleetOf(HC.c);};
 const allTails=()=>allHubs().flatMap(h=>h.fleet.map(a=>a.id));
 const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers),0);
 /* one evaluation of the whole airline (hubs share connecting demand), cached until anything changes */
 let _airE=null,_airSig='';
 function airEval(){
-  const hs=allHubs();
+  const hs=netHubs();
   const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur])]));
   if(_airE&&sig===_airSig)return _airE;
   const res=hs.length===1?[evaluate(hs[0].rots,hs[0].fleet,hs[0].gates,hs[0].H)]
-    :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:h.fleet,gates:h.gates,H:h.H})));
+    :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:vFleetOf(h.c,hs),gates:h.gates,H:h.H})));
   const byHub={}; hs.forEach((h,k)=>byHub[h.c]=res[k]);
   const sum=k=>res.reduce((a,E)=>a+E[k],0), nR=hs.reduce((a,h)=>a+h.rots.length,0);
   const total={netPm:sum('netPm'),pm:sum('pm'),pax:sum('pax'),seatMi:sum('seatMi'),emptyMi:sum('emptyMi'),
     otp:nR?res.reduce((a,E,k)=>a+E.otp*hs[k].rots.length,0)/nR:1, rots:nR};
   total.lf=total.seatMi>0?total.pm/total.seatMi:0;
+  /* with cross-hub flying a hub can sell seats another hub flies, so the airline's net is taken
+     from its totals (exact); per-hub nets are attributions */
+  if(hs.some(h=>h.rots.some(r=>crossHub(r,h.H)))){total.emptyMi=Math.max(0,total.seatMi-total.pm); total.netPm=total.pm-EMPTY_W*total.emptyMi;}
   if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
   _airE={byHub,total,hubs:hs}; _airSig=sig; return _airE;
 }
 const evalView=()=>airEval().byHub[HC.c];
-const hubViol=c=>{const h=hubStore[c]; return h?scheduleViolations(h.rots,h.fleet,h.gates,h.tiers):[];};
+const hubViol=c=>{const h=hubStore[c]; return h?scheduleViolations(h.rots,vFleetOf(c),h.gates,h.tiers):[];};
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};

@@ -128,7 +128,7 @@ function drawMapLayer(){
 
   const gr=grat.map(([x1,y1,x2,y2])=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="rgba(22,40,60,.07)" stroke-width="${f2(s)}"/>`).join('');
   const arcs=segs.map(q=>`<path d="M${f1(q.x1)} ${f1(q.y1)} Q${f1(q.cx)} ${f1(q.cy)} ${f1(q.x2)} ${f1(q.y2)}"
-      fill="none" stroke="${mapMode==='lf'&&q.lf!=null?lfColor(q.lf):q.col}" stroke-width="${f2(q.w*s)}" stroke-linecap="round" opacity="0.75">
+      fill="none" stroke="${mapMode==='lf'&&q.lf!=null?lfColor(q.lf):(isOwnHub(q.a,HC)||isOwnHub(q.b,HC))&&(q.a===hub.c||q.b===hub.c)?airline.c1:q.col}" stroke-width="${f2((isOwnHub(q.a,HC)||isOwnHub(q.b,HC))&&(q.a===hub.c||q.b===hub.c)?q.w*s+1.5*s:q.w*s)}" stroke-linecap="round" opacity="0.75">
       <title>${q.a}–${q.b} · ${q.f}× daily · ${q.seats} seats/day${q.lf!=null?` · ${Math.round(q.lf*100)}% full`:''}</title></path>`).join('');
   const dots=nodes.map(n=>`<circle class="mapnode" data-city="${n.c}" cx="${f1(n.x)}" cy="${f1(n.y)}" r="${f2(n.r*s)}" fill="#16283C" opacity="0.82" style="cursor:pointer">
       <title>${n.c} — ${A[n.c].n}${n.pax?' · '+Math.round(n.pax)+' pax':''} · ${n.f}× daily · click for details</title></circle>`).join('');
