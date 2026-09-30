@@ -31,6 +31,7 @@
 </header>
 
 <div class="ctl">
+  <div class="hubsw" id="hubsw" style="display:none" aria-label="Hub being viewed"></div>
   <nav class="tabs" id="tabs" role="tablist" aria-label="Game sections">
     <button type="button" role="tab" data-tab="network">Network</button>
     <button type="button" role="tab" data-tab="schedule">Schedule</button>
@@ -144,6 +145,7 @@
 <section class="tabpane" data-pane="fleet" role="tabpanel">
   <div class="fleetgrid">
   <div>
+    <div class="panel" id="hubsPanel" style="margin-bottom:18px"></div>
     <div class="panel step" id="pFleet">
     <div class="step-badge">1</div>
     <h2>Fleet &amp; gates <em id="bpts">—</em></h2>
@@ -228,7 +230,7 @@
   Demand and the aircraft catalog step forward on the real schedule years — 1988, 1993, 1997, 2001, 2005.
   326 airports. Anything closer than 75 nm to your hub is a drive, not a flight. Indiana kept no daylight time in 1988.
   A bigger terminal is a slower one: minimum connect time rises 5 minutes for every 5 gates you lease, up to a 40-minute cap. Widebodies (200+ seats) need a heavy gate, and arrivals from abroad need an international (customs) gate to deplane — on the ground 90 minutes or more, only for the first 45, then they're towed off. Flights from Canada, Bermuda, Nassau and Aruba clear US customs before departure and arrive as domestic. Bigger gates take smaller aircraft when they're free.
-  Slack absorbs delay. An aircraft turned at the minimum, every time, carries the morning's delay all day — and its own connections stop working. Padding a rotation adds scheduled block time to both of its hub legs: it soaks up expected delay, but keeps the aircraft busy longer. A trip longer than a day — Tokyo, Hong Kong — flies as a 2-day line: pair two aircraft of the same type and they swap schedules every day, so the flight still operates daily. Their spare hours can carry other flying.
+  Slack absorbs delay. An aircraft turned at the minimum, every time, carries the morning's delay all day — and its own connections stop working. Padding a rotation adds scheduled block time to both of its hub legs: it soaks up expected delay, but keeps the aircraft busy longer. A trip longer than a day — Tokyo, Hong Kong — flies as a 2-day line: pair two aircraft of the same type and they swap schedules every day, so the flight still operates daily. Their spare hours can carry other flying. Once you can afford it, open more hubs from the Fleet tab (40 points plus gates): each hub runs its own schedule, gates and fleet, and the switcher beside the tabs picks which one you're working on. Connecting passengers between two cities are counted once across the airline, so your hubs compete for them — offering both routings wins more of a market, but never more than exists. Each extra hub numbers its flights in its own thousand.
   Connections are worth most around 30 minutes above the minimum, not at it.
   Customs adds 30 minutes to any connection arriving from abroad. ETOPS constrains twins; trijets and quads crossed oceans freely.
   Score is net passenger-miles — filled seat-miles minus a penalty for empty ones — on great-circle O&amp;D distance, revealed only when you launch.
@@ -267,6 +269,7 @@
 <script src="js/ui/markets.js"></script>
 <script src="js/ui/hubstats.js"></script>
 <script src="js/ui/history.js"></script>
+<script src="js/ui/hubs.js"></script>
 <script src="js/ui/tabs.js"></script>
 <script src="js/ui/events.js"></script>
 <script src="js/main.js"></script>

@@ -25,10 +25,10 @@ AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{
 /* ---- hub context ----
    The engine never assumes a single hub: every hub-dependent function takes a hub context
    H = {c, ap, spokes, dHub} built here. (The UI keeps its own "current hub" for display.) */
-function makeHub(code){
+function makeHub(code,band){
   const ap=A[code], spokes=AIRPORTS.filter(s=>s.c!==code&&nm(ap,s)>=MIN_STAGE);   // co-terminals aren't spokes
   const dHub={}; spokes.forEach(s=>dHub[s.c]=nm(ap,s));
-  return {c:code,ap,spokes,dHub};
+  return {c:code,ap,spokes,dHub,band:band||0};   // band: this hub's flight-number range (0 → 100–999, 1 → 1100–1999…)
 }
 /* ---- mutable world state: era (airline-wide) ---- */
 let growth=1, YEAR=YEAR_MIN;
@@ -58,7 +58,7 @@ const mod=t=>((t%DAY)+DAY)%DAY;
    its return gets the next even number (the real-world parent/return convention).
    dir 'out' -> odd, dir 'ret' -> odd+1. The hub argument is per-leg, so this stays
    correct once aircraft fly between multiple hubs. */
-function flightNo(hubC,dst,dep,via,dir){
+function flightNo(hubC,dst,dep,via,dir,band){
   let h=7;
   const key=hubC+'>'+(via?via+'>':'')+dst;
   for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
@@ -66,6 +66,6 @@ function flightNo(hubC,dst,dep,via,dir){
   const base=100+(h%899);                     // 100..998
   let odd=base%2?base:base+1;                 // outbound odd
   if(odd>998)odd-=2;
-  return dir==='ret' ? odd+1 : odd;           // return is the next even number
+  return (dir==='ret' ? odd+1 : odd)+1000*(band||0);   // return = next even number; each extra hub gets its own thousand
 }
 const gauss=(t,mu,sd)=>Math.exp(-((t-mu)**2)/(2*sd*sd));

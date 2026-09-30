@@ -122,7 +122,7 @@ document.addEventListener('click',e=>{
   const h=e.target.closest&&e.target.closest('[data-fsort]');
   if(h){const key=h.getAttribute('data-fsort');
     if(fpSort===key)fpAsc=!fpAsc; else{fpSort=key;fpAsc=(key==='id'||key==='t');}
-    renderFleetPerf(evaluate(rots,owned,gatesOwned,HC));return;}
+    renderFleetPerf(evalView());return;}
   // "replace" in the table uses the roster's existing handler; bring that roster line into view
   const rp=e.target.closest&&e.target.closest('#ftails [data-replopen]');
   if(rp){const id=rp.getAttribute('data-replopen');

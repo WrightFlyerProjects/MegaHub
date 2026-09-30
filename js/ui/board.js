@@ -177,7 +177,7 @@ function gateConflicts(rots,fleet,gates){
 
 function render(){
   dissolvePairs();
-  const E=evaluate(rots,owned,gatesOwned,HC);
+  const E=evalView();
   renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();renderUndo();
   const cur=E.cur,w=100/DAY;let bars='';
   for(let t=0;t<DAY;t+=5){const v=Math.max(...cur.slice(t,t+5));if(!v)continue;
@@ -204,6 +204,7 @@ renderSchedule(E);
   renderMarketsTab(E);
   renderFleetPerf(E);
   renderRoster();          // status, pairs and sell/replace locks follow the schedule
+  renderHubSwitch(); renderHubsPanel();
   renderHubStats(E); renderHistory(); renderSeasons();
   renderCoach();
   renderMap(E); renderTerminal(E);

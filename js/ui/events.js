@@ -61,20 +61,20 @@ document.addEventListener('click',e=>{
   if(op&&!e.target.getAttribute('data-edit')&&!e.target.getAttribute('data-del')){
     const key=op.getAttribute('data-open')+':'+op.getAttribute('data-dir');
     schedOpen = schedOpen===key ? null : key;
-    renderCity(op.getAttribute('data-city'),evaluate(rots,owned,gatesOwned,HC));
+    renderCity(op.getAttribute('data-city'),evalView());
     render();return;}
   // generic: any element carrying data-city (Frequency & Capture rows, map nodes) opens the city card
   const cityEl=e.target.closest&&e.target.closest('[data-city]');
   if(cityEl){
     const c=cityEl.getAttribute('data-city');
-    if(c&&c!==HUB.c){ renderCity(c,evaluate(rots,owned,gatesOwned,HC));
+    if(c&&c!==HUB.c){ renderCity(c,evalView());
       const card=$('city'); if(card&&card.scrollIntoView)card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
-    else if(c===HUB.c){ renderHubCard(evaluate(rots,owned,gatesOwned,HC));
+    else if(c===HUB.c){ renderHubCard(evalView());
       const card=$('city'); if(card&&card.scrollIntoView)card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
     return;}
 });
-$('schedFind').addEventListener('input',e=>{schedFilter=e.target.value;renderSchedule(evaluate(rots,owned,gatesOwned,HC));});
-$('hub').addEventListener('change',()=>{setHub($('hub').value);rots=[];launched=false;selCity=null;mapReset();
+$('schedFind').addEventListener('input',e=>{schedFilter=e.target.value;renderSchedule(evalView());});
+$('hub').addEventListener('change',()=>{const _o=HC.c,_v=$('hub').value; hubOrder=hubOrder.map(c=>c===_o?_v:c); delete hubStore[_o]; lastHubs={}; setHub(_v);rots=[];launched=false;selCity=null;mapReset();
   $('city').style.display='none';destSel='';viaSel='';$('viaQ').value='';syncDest();renderHub();renderFleetPanel();render();preview();});
 
 /* ---- map zoom / pan interaction (delegated, survives re-render) ---- */
@@ -135,7 +135,7 @@ document.addEventListener('change',e=>{
   const a=owned.find(x=>x.id===t);
   if(!a){return;}
   if(!v){e.target.value=a.id;return;}                       // empty -> revert
-  if(v!==a.id && owned.some(x=>x.id===v)){alert('That tail number is already in use.');e.target.value=a.id;return;}
+  if(v!==a.id && allTails().includes(v)){alert('That tail number is already in use.');e.target.value=a.id;return;}
   pushUndo('rename tail');
   const old=a.id; a.id=v;
   owned.forEach(x=>{if(x.pair===old)x.pair=v;});
@@ -205,33 +205,33 @@ $('clearac').onclick=()=>{
   launched=false; render(); preview();
 };
 $('launch').onclick=()=>{
-  if(!rots.length||launched)return;
-  if(scheduleViolations(rots,owned,gatesOwned,gateTiers).length)return;
-  const E=evaluate(rots,owned,gatesOwned,HC);
+  const AE=airEval(), T=AE.total;
+  if(!T.rots||launched)return;
+  if(hubOrder.some(c=>hubViol(c).length))return;         // every hub's schedule must be legal
   const e=era();
-  const score=E.netPm;                        // NET pax-miles is the score
-  const gross=grossPts(Math.max(0,score)), up=upkeepPts(owned,gatesOwned,gateTiers), net=gross-up;
+  const score=T.netPm;                        // NET pax-miles is the score (whole airline)
+  const gross=grossPts(Math.max(0,score)), up=airUpkeep(), net=gross-up;
   launched=true; editIdx=null;
-  // per-flight results keyed by flight number, so they survive schedule changes into next year
-  // capture per-LEG results keyed by discrete flight number, so each flight (out and
-  // return) carries its own last-year load into next year's planning
-  const perFlt={};
-  (E.flights||[]).forEach(f=>{
-    perFlt[f.no]={from:f.from,to:f.to,via:f.via,ac:f.ac,seats:f.seats,
-      local:f.local,connect:f.connect,pair:f.pair,delay:f.delay};
-  });
-  lastE={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,pax:E.pax,peak:E.peak,markets:E.markets,local:E.local,perFlt,
-    perTail:tailLoadStats(E),pairRows:(E.pairRows||[]).map(p=>({i:p.i,j:p.j,pax:p.pax}))};
+  // per hub: last year's per-flight, per-aircraft and market results, for planning next year
+  hubOrder.forEach(c=>withHub(c,()=>{const E=AE.byHub[c], perFlt={};
+    (E.flights||[]).forEach(f=>{perFlt[f.no]={from:f.from,to:f.to,via:f.via,ac:f.ac,seats:f.seats,
+      local:f.local,connect:f.connect,pair:f.pair,delay:f.delay};});
+    lastHubs[c]=lastE={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,pax:E.pax,peak:E.peak,markets:E.markets,local:E.local,perFlt,
+      perTail:tailLoadStats(E),pairRows:(E.pairRows||[]).map(p=>({i:p.i,j:p.j,pax:p.pax}))};}));
+  lastE=lastHubs[HC.c]||null;
   // Commit this year exactly once. If the player already launched this year, then
   // edited and re-launched, REPLACE the prior result rather than banking it twice.
-  const seasonRec={y:e.year,pm:score,lf:E.lf,otp:E.otp,pax:E.pax,fleet:owned.length,gates:gatesOwned,rots:rots.length,dm:2};   // dm: delay model version
+  const nFleet=AE.hubs.reduce((a,h)=>a+h.fleet.length,0), nGates=AE.hubs.reduce((a,h)=>a+h.gates,0);
+  const seasonRec={y:e.year,pm:score,lf:T.lf,otp:T.otp,pax:T.pax,fleet:nFleet,gates:nGates,rots:T.rots,dm:2};   // dm: delay model version
+  if(hubOrder.length>1)seasonRec.hubs=hubOrder.map(c=>({c,pm:AE.byHub[c].netPm}));
   const prior=committed[e.year];
   if(prior){ cumPm+=score-prior.score; points=points-prior.net+net;
     const ix=results.findIndex(r=>r.y===e.year); if(ix>=0)results[ix]=seasonRec; }
   else { cumPm+=score; points=Math.max(0,points+net); results.push(seasonRec); }
   committed[e.year]={score,net};
   points=Math.max(0,points);
-  lastAward={year:e.year,pm:E.pm,netPm:E.netPm,lf:E.lf,gross,up,net};
+  lastAward={year:e.year,pm:T.pm,netPm:T.netPm,lf:T.lf,gross,up,net};
+  if(hubOrder.length>1)lastAward.hubs=hubOrder.map(c=>({c,netPm:AE.byHub[c].netPm,pax:AE.byHub[c].pax}));
   render();                                   // reveals the year just flown; calendar advances on Continue
   saveLocal();
 };

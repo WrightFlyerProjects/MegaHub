@@ -300,3 +300,14 @@ th[data-fsort]{cursor:pointer;user-select:none} th[data-fsort]:hover,th.on{color
 .linegroup{font:600 10px/1 var(--mono);color:var(--blue);letter-spacing:.04em;padding:7px 8px 5px;border-bottom:1px solid var(--rule2);background:rgba(42,108,153,.05)}
 .lane.paired .tag{border-left:3px solid var(--blue);padding-left:5px}
 .f-line{background:rgba(42,108,153,.12);color:var(--blue)}
+/* ---------------- v3.8: multi-hub ---------------- */
+.hubsw{display:flex;gap:4px;align-items:flex-end;margin-bottom:6px}
+.hubsw button{width:auto;margin:0;padding:6px 11px;font:700 12px/1 var(--cond);letter-spacing:.06em;background:transparent;color:var(--ink3);border:1px solid var(--rule);border-radius:3px}
+.hubsw button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.hubsw .hw{color:var(--amber)} .hubsw button.on .hw{color:#fff}
+#hubsPanel tr.hubon td{background:rgba(42,108,153,.06)}
+.openhub{margin-top:12px;border-top:1px solid var(--rule);padding-top:10px}
+.openhub label{margin-top:0}
+.openrow{display:flex;align-items:center;gap:10px;margin-top:8px;font:500 11px var(--mono);color:var(--ink2)}
+.openrow button{width:auto;margin:0 0 0 auto;padding:8px 14px}
+select.rebase{width:auto;display:inline-block;padding:2px 4px;font:500 10px var(--mono);margin-left:4px}

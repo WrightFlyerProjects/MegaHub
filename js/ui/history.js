@@ -45,7 +45,7 @@ function renderSeasons(){
   host.innerHTML=`<div class="tscroll"><table class="fptab"><tr><th>Year</th><th>Net pax-mi</th><th>vs prior</th><th>Pax/day</th><th>LF</th><th>On-time</th><th>Aircraft</th><th>Gates</th><th>Rotations</th></tr>`
     +rs.map(r=>{const p=prevResult(r.y);
       return `<tr><td><b>${r.y}</b></td><td>${Math.round(r.pm).toLocaleString()}</td><td>${p?yoy(r.pm,p.pm):''}</td>
-        <td>${v(r.pax,x=>Math.round(x).toLocaleString())}</td><td>${v(r.lf,x=>Math.round(x*100)+'%')}</td><td>${v(r.otp,x=>Math.round(x*100)+'%')}</td>
+        <td>${v(r.pax,x=>Math.round(x).toLocaleString())}${r.hubs?`<div style="color:var(--ink3);font-size:10px">${r.hubs.map(h=>h.c+' '+(h.pm/1e6).toFixed(1)+'M').join(' · ')}</div>`:''}</td><td>${v(r.lf,x=>Math.round(x*100)+'%')}</td><td>${v(r.otp,x=>Math.round(x*100)+'%')}</td>
         <td>${v(r.fleet,x=>x)}</td><td>${v(r.gates,x=>x)}</td><td>${v(r.rots,x=>x)}</td></tr>`;}).join('')
     +`</table></div><div class="note">Seasons flown before this update recorded only net pax-miles; the other columns fill in from your next launch.</div>`;
 }

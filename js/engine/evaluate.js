@@ -28,7 +28,11 @@ function productsOf(rots,fleet,H){
 const roomOf=p=>Math.min(...p.legs.map(l=>l.left));
 const takeFrom=(p,n)=>p.legs.forEach(l=>l.left-=n);
 
-function evaluate(rots,fleet,gates,H){
+/* evaluate() in three stages so several hubs can share one pool of connecting demand:
+   evalPrep (per hub: local traffic, stop-en-route pairs, candidate connections), a joint
+   allocation of connecting passengers best-connection-first across all hubs, and finish (per
+   hub: scoring and records). With one hub this is the same computation in the same order. */
+function evalPrep(rots,fleet,gates,H){
   const MCT_G=mctFor(gates);
   const D=delayMap(rots,fleet,H);
   const {out,inn,pairs,rotCaps}=productsOf(rots,fleet,H);
@@ -97,30 +101,8 @@ function evaluate(rots,fleet,gates,H){
     if(v<0.02)return;
     cands.push({Ap,Bp,i,j,d,ct,r,v,P,del,need});
   }));
-  const nItin={}; cands.forEach(c=>nItin[c.i+c.j]=(nItin[c.i+c.j]||0)+1);
-  cands.sort((x,y)=>y.v-x.v);
-  const used={},mk={},flows={};
-  cands.forEach(c=>{
-    const k=c.i+c.j, av=spill(c.i,c.j);
-    const capK=av*capture(nItin[k],HALF_CONN), room=capK-(used[k]||0);
-    if(room<=0)return;
-    const take=Math.min(room,roomOf(c.Ap),roomOf(c.Bp),av*c.v);
-    if(take<=0.5)return;
-    used[k]=(used[k]||0)+take; takeFrom(c.Ap,take); takeFrom(c.Bp,take);
-    pm+=take*c.d; pax+=take;
-    const shA=H.dHub[c.i]/(H.dHub[c.i]+H.dHub[c.j]);          // attribution only: score is unchanged
-    if(perRot[c.Ap.ri])perRot[c.Ap.ri].pm+=take*c.d*shA;
-    if(perRot[c.Bp.ri])perRot[c.Bp.ri].pm+=take*c.d*(1-shA);
-    if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;
-      if(c.Ap.dir==='out')perRot[c.Ap.ri].outConnect+=take; else perRot[c.Ap.ri].retConnect+=take;}
-    if(perRot[c.Bp.ri]){perRot[c.Bp.ri].connect+=take;
-      if(c.Bp.dir==='out')perRot[c.Bp.ri].outConnect+=take; else perRot[c.Bp.ri].retConnect+=take;}
-    if(!mk[k])mk[k]={...c,pax:0,n:nItin[k]};
-    mk[k].pax+=take;
-    (flows[c.i]=flows[c.i]||{out:0,in:0}).out+=take;
-    (flows[c.j]=flows[c.j]||{out:0,in:0}).in+=take;
-  });
-
+  const mk={},flows={};
+  return {cands,H,perRot,mk,flows,addPm:(a,b)=>{pm+=a;pax+=b;},finish:()=>{
   const cur=gateCurve(rots,fleet), peak=rots.length?Math.max(...cur):0;
   const seatMi=rots.reduce((a,r)=>{const ac=fleet.find(x=>x.id===r.ac);
     return a+shape(r,ac,H).legs.reduce((s,L)=>s+ac.seats*nm(A[L.a],A[L.b]),0);},0);
@@ -143,7 +125,7 @@ function evaluate(rots,fleet,gates,H){
     const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
     // outbound: hub -> (via ->) dst
     flights.push({ri:i, dir:'out', ac:r.ac, seats,
-      no:flightNo(hubC,r.dst,r.dep,r.via||null,'out'),
+      no:flightNo(hubC,r.dst,r.dep,r.via||null,'out',H.band),
       from:hubC, to:r.dst, via:r.via||null,
       depHub:mod(m.depHub), depHubLoc:mod(m.depHub),        // hub local = depHub (hub tz baseline)
       arrSpokeLoc:mod(m.arrDst+tzd),
@@ -151,7 +133,7 @@ function evaluate(rots,fleet,gates,H){
       local:pr.outLocal||0, connect:pr.outConnect||0, pair:pr.outPair||0, delay:del});
     // return: dst -> (via ->) hub
     flights.push({ri:i, dir:'ret', ac:r.ac, seats,
-      no:flightNo(hubC,r.dst,r.dep,r.via||null,'ret'),
+      no:flightNo(hubC,r.dst,r.dep,r.via||null,'ret',H.band),
       from:r.dst, to:hubC, via:r.via||null,
       depSpokeLoc:mod(m.depDst+tzd), arrHub:mod(m.arrHub),
       hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),
@@ -166,4 +148,37 @@ function evaluate(rots,fleet,gates,H){
     vias:rots.filter(r=>r.via).length,
     markets:Object.values(mk).sort((a,b)=>b.pax-a.pax),
     local:local.sort((a,b)=>b.pax-a.pax)};
+  }};
 }
+/* list: [{rots,fleet,gates,H}] → one result per hub. Connecting demand between two cities is
+   counted once airline-wide: every hub's candidate connections compete in one ranking, and a
+   market's capacity grows with the total number of itineraries offered across hubs. */
+function evaluateMulti(list){
+  const S=list.map(o=>evalPrep(o.rots,o.fleet,o.gates,o.H));
+  const all=[]; S.forEach((st,h)=>st.cands.forEach(c=>all.push({c,h})));
+  const nItin={}; all.forEach(({c})=>nItin[c.i+c.j]=(nItin[c.i+c.j]||0)+1);
+  all.sort((x,y)=>y.c.v-x.c.v);
+  const used={};
+  all.forEach(({c,h})=>{const s=S[h], perRot=s.perRot, mk=s.mk, flows=s.flows, H=s.H;
+    const k=c.i+c.j, av=spill(c.i,c.j);
+    const capK=av*capture(nItin[k],HALF_CONN), room=capK-(used[k]||0);
+    if(room<=0)return;
+    const take=Math.min(room,roomOf(c.Ap),roomOf(c.Bp),av*c.v);
+    if(take<=0.5)return;
+    used[k]=(used[k]||0)+take; takeFrom(c.Ap,take); takeFrom(c.Bp,take);
+    s.addPm(take*c.d,take);
+    const shA=H.dHub[c.i]/(H.dHub[c.i]+H.dHub[c.j]);          // attribution only: score is unchanged
+    if(perRot[c.Ap.ri])perRot[c.Ap.ri].pm+=take*c.d*shA;
+    if(perRot[c.Bp.ri])perRot[c.Bp.ri].pm+=take*c.d*(1-shA);
+    if(perRot[c.Ap.ri]){perRot[c.Ap.ri].connect+=take;
+      if(c.Ap.dir==='out')perRot[c.Ap.ri].outConnect+=take; else perRot[c.Ap.ri].retConnect+=take;}
+    if(perRot[c.Bp.ri]){perRot[c.Bp.ri].connect+=take;
+      if(c.Bp.dir==='out')perRot[c.Bp.ri].outConnect+=take; else perRot[c.Bp.ri].retConnect+=take;}
+    if(!mk[k])mk[k]={...c,pax:0,n:nItin[k]};
+    mk[k].pax+=take;
+    (flows[c.i]=flows[c.i]||{out:0,in:0}).out+=take;
+    (flows[c.j]=flows[c.j]||{out:0,in:0}).in+=take;
+  });
+  return S.map(st=>st.finish());
+}
+function evaluate(rots,fleet,gates,H){return evaluateMulti([{rots,fleet,gates,H}])[0];}

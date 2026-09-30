@@ -168,11 +168,11 @@ function renderMarketsTab(E){
 }
 
 function exploreMarket(c){
-  mktCity=c; renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned,HC));
+  mktCity=c; renderMarketsTab(mkE||evalView());
   const p=$('mexpPanel'); if(p&&p.scrollIntoView)p.scrollIntoView({block:'start',behavior:'smooth'});
 }
 $('mktSel').addEventListener('change',e=>exploreMarket(e.target.value));
-$('mktFind').addEventListener('input',e=>{mkFilter=e.target.value;renderMarketsTab(mkE||evaluate(rots,owned,gatesOwned,HC));});
+$('mktFind').addEventListener('input',e=>{mkFilter=e.target.value;renderMarketsTab(mkE||evalView());});
 document.addEventListener('click',e=>{
   const m=e.target.closest&&e.target.closest('[data-mcity]');
   if(m){exploreMarket(m.getAttribute('data-mcity'));return;}

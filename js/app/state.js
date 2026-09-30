@@ -10,8 +10,54 @@ let undoStack=[], undoLabel='';   // #5 undo: snapshots taken before each mutati
 /* The hub the UI is showing. The engine is hub-agnostic and receives HC explicitly;
    HUB / SPOKES / dHub are display conveniences for the same hub. */
 let HC=null, HUB=null, SPOKES=[], dHub={};
-function setHub(code){HC=makeHub(code); HUB=HC.ap; SPOKES=HC.spokes; dHub=HC.dHub;}
+/* ---- the airline's hubs (v3.8) ----
+   The hub being viewed lives in the working globals every tab uses (owned, rots, gatesOwned,
+   gateTiers, HC/HUB/SPOKES/dHub), so each tab simply works on "this hub". Other hubs wait in
+   hubStore. hubOrder lists them all in the order they were opened. */
+let hubOrder=['DFW'], hubStore={}, lastHubs={};
+const HUB_FEE=40;                                          // points to open a hub (plus its gates)
+function setHub(code){
+  // a one-hub airline re-homed directly (as before multi-hub) keeps its hub list in step
+  if(hubOrder.length===1&&!hubOrder.includes(code)&&!hubStore[code]){delete hubStore[hubOrder[0]]; delete lastHubs[hubOrder[0]]; hubOrder=[code];}
+  HC=makeHub(code,(hubStore[code]&&hubStore[code].band)||0); HUB=HC.ap; SPOKES=HC.spokes; dHub=HC.dHub;}
 setHub('DFW');
+/* park the viewed hub's working state in the store */
+function stashView(){if(!HC)return; const b=(hubStore[HC.c]&&hubStore[HC.c].band)||0;
+  hubStore[HC.c]={gates:gatesOwned,tiers:gateTiers,fleet:owned,rots,band:b}; lastHubs[HC.c]=lastE;}
+/* bring a hub into the working state (no other side effects) */
+function loadView(code){const h=hubStore[code]; setHub(code); gatesOwned=h.gates; gateTiers=h.tiers; owned=h.fleet; rots=h.rots; lastE=lastHubs[code]||null;}
+/* switch the view to another hub */
+function viewHub(code){
+  if(!hubStore[code]&&!(HC&&code===HC.c))return; if(HC&&code===HC.c)return;
+  stashView(); loadView(code);
+  editIdx=null; selCity=null; destSel=''; viaSel=''; pending={}; gatesPending=0; tierPend={H:0,I:0}; mktCity=null;
+  mapZoom=1; mapPanX=0; mapPanY=0;
+}
+/* run fn with another hub temporarily in the working state, then restore the view */
+function withHub(code,fn){if(code===HC.c)return fn(); const back=HC.c; stashView(); loadView(code);
+  try{return fn();}finally{stashView(); loadView(back);}}
+/* every hub, current data, with its engine context */
+function allHubs(){stashView(); return hubOrder.map(c=>({c,...hubStore[c],H:makeHub(c,hubStore[c].band||0)}));}
+const allTails=()=>allHubs().flatMap(h=>h.fleet.map(a=>a.id));
+const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers),0);
+/* one evaluation of the whole airline (hubs share connecting demand), cached until anything changes */
+let _airE=null,_airSig='';
+function airEval(){
+  const hs=allHubs();
+  const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur])]));
+  if(_airE&&sig===_airSig)return _airE;
+  const res=hs.length===1?[evaluate(hs[0].rots,hs[0].fleet,hs[0].gates,hs[0].H)]
+    :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:h.fleet,gates:h.gates,H:h.H})));
+  const byHub={}; hs.forEach((h,k)=>byHub[h.c]=res[k]);
+  const sum=k=>res.reduce((a,E)=>a+E[k],0), nR=hs.reduce((a,h)=>a+h.rots.length,0);
+  const total={netPm:sum('netPm'),pm:sum('pm'),pax:sum('pax'),seatMi:sum('seatMi'),emptyMi:sum('emptyMi'),
+    otp:nR?res.reduce((a,E,k)=>a+E.otp*hs[k].rots.length,0)/nR:1, rots:nR};
+  total.lf=total.seatMi>0?total.pm/total.seatMi:0;
+  if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
+  _airE={byHub,total,hubs:hs}; _airSig=sig; return _airE;
+}
+const evalView=()=>airEval().byHub[HC.c];
+const hubViol=c=>{const h=hubStore[c]; return h?scheduleViolations(h.rots,h.fleet,h.gates,h.tiers):[];};
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};
@@ -23,10 +69,10 @@ const X=t=>(t/DAY)*100;
 const qcls=v=>v>=.72?'q-hi':v>=.45?'q-md':'q-lo';
 const pcls=v=>v>=.72?'p-hi':v>=.45?'p-md':'p-lo';
 const MCTg=()=>mctFor(gatesOwned);
-const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','SLC','PHX','LAX','JFK','MIA','RDU'];
+const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','SLC','PHX','LAX','JFK','MIA','RDU','DCA'];
 
 function startGame(){
-  setYear(YEAR_MIN); setHub('DFW');
+  setYear(YEAR_MIN); hubOrder=['DFW']; hubStore={}; lastHubs={}; setHub('DFW');
   owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;gateTiers={H:0,I:0};tierPend={H:0,I:0};tierNotice=null;
   rots=[];launched=false;selCity=null;editIdx=null;results=[];acSeq=801;lastE=null;committed={};
 }

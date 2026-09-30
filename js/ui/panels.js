@@ -7,7 +7,7 @@ function renderHubLabels(){
 }
 function renderHub(){
   renderHubLabels();
-  const locked=rots.length>0||owned.length>0||(committed&&Object.keys(committed).length>0);
+  const locked=rots.length>0||owned.length>0||hubOrder.length>1||(committed&&Object.keys(committed).length>0);
   $('hub').innerHTML=HUBS.map(c=>`<option value="${c}"${c===HUB.c?' selected':''}>${c} — ${A[c].n}</option>`).join('');
   $('hub').disabled=locked;
   $('hublock').textContent=locked?'· locked once you schedule':'· pick before you schedule';
@@ -21,7 +21,7 @@ function renderHub(){
 }
 function renderFleetPanel(){
   const avail=availTypes();
-  $('bpts').textContent=points+' pts · upkeep '+upkeepPts(owned,gatesOwned,gateTiers)+'/yr';
+  $('bpts').textContent=points+' pts · upkeep '+airUpkeep()+'/yr';
   $('hdrPts').innerHTML=`Points<br>${points}`;
   $('cat').innerHTML=avail.map(c=>{
     const have=owned.filter(o=>o.t===c.t).length, add=pending[c.t]||0;
@@ -195,24 +195,27 @@ function renderRoster(){
             <input class="tail" value="${a.id}" data-tail="${a.id}" maxlength="6" spellcheck="false">
             <span class="rst ${flying||a.pair?'flying':''}">${a.pair?`⇄ ${a.pair}`:flying?'in service':'idle'}</span>
             <button class="repl" data-replopen="${a.id}" ${a.pair?'disabled title="part of a 2-day line — remove the long trip first"':''}>${replOpen===a.id?'cancel':'replace'}</button>
-            <button class="sell" data-sell="${a.id}" ${flying||a.pair?`disabled title="${a.pair?'part of a 2-day line — remove the long trip first':'unschedule its flights first'}"`:''}>sell +${val}</button>
+            <button class="sell" data-sell="${a.id}" ${flying||a.pair?`disabled title="${a.pair?'part of a 2-day line — remove the long trip first':'unschedule its flights first'}"`:''}>sell +${val}</button>${hubOrder.length>1&&!flying&&!a.pair?`
+            <select class="rebase" data-rebase="${a.id}" title="base this aircraft at another hub"><option value="">move…</option>${hubOrder.filter(c=>c!==HC.c).map(c=>`<option value="${c}">→ ${c}</option>`).join('')}</select>`:''}
           </div>`+box;}).join('')
         +`</div>`;}).join('');
 }
 function renderStats(E){
   const mt=owned.length?minTurnHub(owned):0, m=v=>launched?v:'—', cls=launched?'v':'v mask';
   const e=era(), pv=launched?prevResult(e.year):null, vs=d=>d?`${d} vs ${pv.y}`:'';
+  const multi=hubOrder.length>1, AE=multi?airEval():null, TT=multi?AE.total:E, at=multi?` · ${HUB.c}`:'';
+  const byHub=k=>hubOrder.map(c=>`${c} ${k==='netPm'?(AE.byHub[c].netPm/1e6).toFixed(1)+'M':Math.round(AE.byHub[c][k]).toLocaleString()}`).join(' · ');
   $('erabar').innerHTML=`Year ${e.year} · round ${e.round} of ${e.rounds} · data: ${e.data}${e.leap?' <span style="color:var(--mag)">new snapshot</span>':''}`;
   $('hdrPts').innerHTML=`Points<br>${points}`;
   $('cumbar').innerHTML=`Cumulative net<br>${cumPm?Math.round(cumPm).toLocaleString()+' pax-mi':'—'}`;
   $('stats').innerHTML=[
-    ['Net pax-miles',m(Math.round(E.netPm).toLocaleString()),launched?(pv?vs(yoy(E.netPm,pv.pm)):'filled − empty'):'launch to reveal',cls],
-    ['Passengers',m(Math.round(E.pax).toLocaleString()),launched?(pv&&pv.pax!=null?vs(yoy(E.pax,pv.pax)):'boarded'):'hidden',cls],
-    ['Load factor',m(Math.round((E.lf||0)*100)+'%'),launched?(pv&&pv.lf!=null?vs(yoy(E.lf,pv.lf,true)):'filled ÷ seats'):'hidden',cls],
-    ['Peak gates',E.peak+' / '+gatesOwned,`${E.rons} away · ${E.vias} via`,'v'],
-    ['Hub turn',mt+'m',typeCount(owned)+' fleet type'+(typeCount(owned)>1?'s':''),'v'],
-    ['Min connect',MCTg()+'m',gatesOwned+' gates leased','v'],
-    ['On-time',rots.length?Math.round(E.otp*100)+'%':'—',
+    ['Net pax-miles',m(Math.round(TT.netPm).toLocaleString()),launched?(multi?byHub('netPm'):pv?vs(yoy(TT.netPm,pv.pm)):'filled − empty'):'launch to reveal',cls],
+    ['Passengers',m(Math.round(TT.pax).toLocaleString()),launched?(multi?byHub('pax'):pv&&pv.pax!=null?vs(yoy(TT.pax,pv.pax)):'boarded'):'hidden',cls],
+    ['Load factor',m(Math.round((TT.lf||0)*100)+'%'),launched?(pv&&pv.lf!=null?vs(yoy(TT.lf,pv.lf,true)):'filled ÷ seats'):'hidden',cls],
+    ['Peak gates'+at,E.peak+' / '+gatesOwned,`${E.rons} away · ${E.vias} via`,'v'],
+    ['Hub turn'+at,mt+'m',typeCount(owned)+' fleet type'+(typeCount(owned)>1?'s':''),'v'],
+    ['Min connect'+at,MCTg()+'m',gatesOwned+' gates leased','v'],
+    ['On-time',(multi?TT.rots:rots.length)?Math.round(TT.otp*100)+'%':'—',
       rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m`:'no flying','v']
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
   const viol=scheduleViolations(rots,owned,gatesOwned,gateTiers);
@@ -234,12 +237,17 @@ function renderStats(E){
   } else $('viol').style.display='none';
   const tnb=$('tiernote'); if(tnb){tnb.style.display=tierNotice?'block':'none';
     if(tierNotice)tnb.innerHTML=`<span>${tierNotice}</span><span class="x" data-tnclose="1">✕</span>`;}
+  const otherBad=multi?hubOrder.filter(c=>c!==HC.c&&hubViol(c).length):[];
+  if(otherBad.length){$('viol').style.display='block';
+    $('viol').innerHTML=(viol.length?$('viol').innerHTML:`<h2 style="border-color:rgba(178,58,58,.3);color:var(--red)">Schedule not legal at another hub</h2>`)
+      +`<div class="rowv" style="margin-top:6px"><span>${otherBad.map(c=>`<span class="x" data-viewhub="${c}" style="color:var(--red)">${c} →</span>`).join(' ')} ${otherBad.length>1?'have':'has'} problems to fix before you launch</span></div>`;}
+  const anyRots=multi?TT.rots:rots.length;
   const e0=era(), lastYear=e0.year===YEAR_MAX;
   $('launch').textContent = launched ? `${e0.year} flown` :
-    viol.length ? 'Fix the schedule first' :
-    !rots.length ? 'Launch schedule' :
+    viol.length||otherBad.length ? 'Fix the schedule first' :
+    !anyRots ? 'Launch schedule' :
     lastYear ? `Launch ${e0.year} schedule & see results` : `Launch ${e0.year} schedule & see results`;
-  $('launch').disabled=launched||!rots.length||viol.length>0;
+  $('launch').disabled=launched||!anyRots||viol.length>0||otherBad.length>0;
 }
 function renderAward(){
   if(!launched||!lastAward){$('award').style.display='none';return;}
@@ -251,7 +259,8 @@ function renderAward(){
     <div class="rowv"><span>Filled pax-miles</span><b>${Math.round(pm).toLocaleString()}</b></div>
     <div class="rowv"><span>Empty-seat penalty</span><b style="color:var(--red)">−${Math.round(pm-netPm).toLocaleString()}</b></div>
     <div class="rowv"><span><b>Net pax-miles</b></span><b>${Math.round(netPm).toLocaleString()}</b></div>
-    <div class="rowv"><span>Load factor</span><b>${Math.round((lf||0)*100)}%</b></div>
+    <div class="rowv"><span>Load factor</span><b>${Math.round((lf||0)*100)}%</b></div>${lastAward.hubs?lastAward.hubs.map(h=>`
+    <div class="rowv" style="color:var(--ink3)"><span>&nbsp;&nbsp;${h.c}</span><span>${Math.round(h.netPm).toLocaleString()} net · ${Math.round(h.pax).toLocaleString()} pax</span></div>`).join(''):''}
     <div class="rowv" style="margin-top:4px"><span>Cumulative net</span><b>${Math.round(cumPm).toLocaleString()}</b></div>
     <div style="border-top:1px solid var(--rule);margin:8px 0"></div>
     <div class="rowv"><span>Traffic points earned</span><b>+${gross}</b></div>
