@@ -28,9 +28,10 @@ function renderHistory(){
     let d='',on=false; pts.forEach(p=>{if(!p){on=false;return;} d+=(on?' L':' M')+p[0].toFixed(1)+' '+p[1].toFixed(1); on=true;});
     return d?`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.8"${dash?' stroke-dasharray="4 3"':''}/>`
       +pts.map(p=>p?`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.4" fill="${col}"/>`:'').join(''):'';};
-  const has=rs.some(r=>r.lf!=null);
+  const has=rs.some(r=>r.lf!=null), firstNew=rs.find(r=>r.dm>=2);
+  const dmNote=firstNew&&rs.some(r=>!r.dm)?` · seasons before ${firstNew.y} were scored under the harsher pre-v3.5 delay model (about 2% lower)`:'';
   host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Net pax-miles by year">${g}${bars}${lineOf('lf','#5A7C33')}${lineOf('otp','#B8760F',true)}</svg>
-    <div class="maplegend">bars = net pax-miles (left axis)${has?' · green = load factor · dashed amber = on-time (right axis)':' · load factor and on-time are recorded from your next launch onward'}</div>`;
+    <div class="maplegend">bars = net pax-miles (left axis)${has?' · green = load factor · dashed amber = on-time (right axis)':' · load factor and on-time are recorded from your next launch onward'}${dmNote}</div>`;
   const best=rs.reduce((a,r)=>r.pm>a.pm?r:a,rs[0]);
   $('histlab').textContent=`${n} season${n>1?'s':''} · best ${best.y}: ${Math.round(best.pm).toLocaleString()}`;
 }

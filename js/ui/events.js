@@ -40,7 +40,7 @@ document.addEventListener('click',e=>{
   if(ed!==null&&ed!==undefined){
     const r=rots[+ed];editIdx=+ed;
     $('ac').value=r.ac;setDest(r.dst);setVia(r.via||'');
-    $('dep').value=r.dep;$('turn').value=r.turn;preview();
+    $('dep').value=r.dep;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
     document.getElementById('add').scrollIntoView({block:'center',behavior:'smooth'});return;}
   if(e.target.id==='cityclose'){selCity=null;$('city').style.display='none';return;}
   // sort buttons
@@ -54,7 +54,7 @@ document.addEventListener('click',e=>{
     const idx=+er.getAttribute('data-editrot'); const r=rots[idx]; if(!r)return;
     editIdx=idx;
     $('ac').value=r.ac;setDest(r.dst);setVia(r.via||'');
-    $('dep').value=r.dep;$('turn').value=r.turn;preview();
+    $('dep').value=r.dep;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
     document.getElementById('add').scrollIntoView({block:'center',behavior:'smooth'});return;
   }
   const op=e.target.closest&&e.target.closest('tr[data-open]');
@@ -165,6 +165,7 @@ $('c2').addEventListener('input',()=>{airline.c2=$('c2').value;applyBrand();rend
 $('tclock').addEventListener('input',()=>{$('tclockOut').textContent=fmt(+$('tclock').value);renderTerminal();});
 $('dep').addEventListener('input',preview);
 $('turn').addEventListener('input',preview);
+$('padSel').addEventListener('change',preview);
 $('depT').addEventListener('input',()=>{const v=$('depT').value;
   if(/^\d{1,2}:\d{2}$/.test(v)){const m=hhmm(v);if(m>=0&&m<DAY){$('dep').value=m;preview();}}});
 $('depT').addEventListener('change',()=>{$('dep').value=hhmm($('depT').value);preview();});
@@ -173,11 +174,11 @@ $('turnN').addEventListener('input',()=>{const v=+$('turnN').value;
 $('turnN').addEventListener('blur',()=>{const v=Math.max(25,Math.min(720,+$('turnN').value||45));
   $('turn').value=v;$('turnN').value=String(v);preview();});
 $('add').onclick=()=>{
-  const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null;
-  const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx);
+  const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null,pad=+$('padSel').value||0;
+  const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad);
   if(err){$('err').textContent=err;return;}
   pushUndo(editIdx===null?'schedule':'edit');
-  const r=mkRot(acId,dst,via,dep,turn);
+  const r=mkRot(acId,dst,via,dep,turn,pad);
   if(editIdx===null)rots.push(r); else{rots[editIdx]=r;editIdx=null;}
   launched=false;render();preview();};
 $('canceledit').onclick=()=>{editIdx=null;preview();renderMoveRow();};
@@ -217,7 +218,7 @@ $('launch').onclick=()=>{
     perTail:tailLoadStats(E),pairRows:(E.pairRows||[]).map(p=>({i:p.i,j:p.j,pax:p.pax}))};
   // Commit this year exactly once. If the player already launched this year, then
   // edited and re-launched, REPLACE the prior result rather than banking it twice.
-  const seasonRec={y:e.year,pm:score,lf:E.lf,otp:E.otp,pax:E.pax,fleet:owned.length,gates:gatesOwned,rots:rots.length};
+  const seasonRec={y:e.year,pm:score,lf:E.lf,otp:E.otp,pax:E.pax,fleet:owned.length,gates:gatesOwned,rots:rots.length,dm:2};   // dm: delay model version
   const prior=committed[e.year];
   if(prior){ cumPm+=score-prior.score; points=points-prior.net+net;
     const ix=results.findIndex(r=>r.y===e.year); if(ix>=0)results[ix]=seasonRec; }

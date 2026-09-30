@@ -119,7 +119,7 @@ function doReplace(id,newType){
   owned[idx]={id, ...cat};
   // rebuild this aircraft's rotations so block time, duration and arrival reflect the
   // new type's speed (otherwise the schedule keeps the old aircraft's timing)
-  rots.forEach((r,i)=>{ if(r.ac===id) rots[i]=mkRot(id,r.dst,r.via||null,r.dep,r.turn); });
+  rots.forEach((r,i)=>{ if(r.ac===id) rots[i]=mkRot(id,r.dst,r.via||null,r.dep,r.turn,r.pad||0); });
   points-=net;
   launched=false;                                    // fleet changed -> re-launch
   replOpen=null;
@@ -133,7 +133,7 @@ function moveTargets(editIdx){
   const r=rots[editIdx]; if(!r)return [];
   return owned.filter(a=>a.id!==r.ac).map(a=>{
     // validate this rotation on aircraft a, ignoring the rotation's current slot
-    const err=validate(rots,owned,gatesOwned,a.id,r.dst,r.dep,r.turn,r.via||null,editIdx);
+    const err=validate(rots,owned,gatesOwned,a.id,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0);
     const w=freeWindows(rots,owned,a.id);
     return {id:a.id,t:a.t,ok:!err,why:err||'',
       tag:!rots.some(x=>x.ac===a.id)?'idle':(w.length?`free ${fmt(w[0].start)}`:'full')};
@@ -153,12 +153,12 @@ function renderMoveRow(){
 function doMove(newId){
   if(editIdx===null||!rots[editIdx])return;
   const r=rots[editIdx];
-  const err=validate(rots,owned,gatesOwned,newId,r.dst,r.dep,r.turn,r.via||null,editIdx);
+  const err=validate(rots,owned,gatesOwned,newId,r.dst,r.dep,r.turn,r.via||null,editIdx,r.pad||0);
   if(err){$('err').textContent=err;return;}
   pushUndo('move route');
   // rebuild the rotation on the new aircraft so block time, duration and arrival
   // are recomputed for its speed — not carried over from the old tail
-  rots[editIdx]=mkRot(newId,r.dst,r.via||null,r.dep,r.turn);
+  rots[editIdx]=mkRot(newId,r.dst,r.via||null,r.dep,r.turn,r.pad||0);
   editIdx=null; launched=false;
   syncAC();render();preview();saveLocal();
 }
@@ -229,7 +229,7 @@ function renderStats(E){
           <div class="note">Upfit gates on the Fleet tab, or retime so fewer overlap. International gates also take widebodies.</div>`:'')
       +(turns.length?`<button id="autofix">Nudge departures later</button>`:'');
     if(turns.length)$('autofix').onclick=()=>{
-      const r=repairSchedule(rots,owned,gatesOwned);
+      const r=repairSchedule(rots,owned,gatesOwned,gateTiers);
       rots=r.rots; launched=false; editIdx=null; render(); preview();};
   } else $('viol').style.display='none';
   const tnb=$('tiernote'); if(tnb){tnb.style.display=tierNotice?'block':'none';

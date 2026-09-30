@@ -8,13 +8,14 @@ function thruMult(via,dst){
 
 /* geometry of a rotation, with or without a via stop */
 function shape(r,ac){
+  const pad=r.pad||0;                          // schedule padding on each hub leg (minutes)
   if(!r.via){
-    const bo=legBlock(HUB.c,r.dst,ac), bi=legBlock(r.dst,HUB.c,ac);
+    const bo=legBlock(HUB.c,r.dst,ac)+pad, bi=legBlock(r.dst,HUB.c,ac)+pad;
     const arrDst=r.dep+bo, depDst=arrDst+r.turn, arrHub=depDst+bi;
     return {legs:[{a:HUB.c,b:r.dst,t:bo},{a:r.dst,b:HUB.c,t:bi}],dur:bo+bi+r.turn,
       marks:{depHub:r.dep,arrDst,depDst,arrHub}};}
-  const b1=legBlock(HUB.c,r.via,ac), b2=legBlock(r.via,r.dst,ac),
-        b3=legBlock(r.dst,r.via,ac), b4=legBlock(r.via,HUB.c,ac),
+  const b1=legBlock(HUB.c,r.via,ac)+pad, b2=legBlock(r.via,r.dst,ac),
+        b3=legBlock(r.dst,r.via,ac), b4=legBlock(r.via,HUB.c,ac)+pad,
         tv=Math.max(VIA_TURN,turnMin(r.via,ac));
   const arrVia=r.dep+b1, depVia=arrVia+tv, arrDst=depVia+b2,
         depDst=arrDst+r.turn, arrVia2=depDst+b3, depVia2=arrVia2+tv, arrHub=depVia2+b4;

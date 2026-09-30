@@ -8,7 +8,7 @@ const STATION_MIN=25, DELAY_CAP=120, OCEAN_LEG=500, CUSTOMS=30;
    a deterministic function of things a scheduler can see and plan around —
    base unreliability, distance exposure, and how congested the hub is when
    this flight tries to push back. Long flights and busy banks run later. */
-const DLY_FREE_NM=900, DLY_PER_NM=0.0042, DLY_CONGEST=2.6, DLY_CONGEST_FREE=3;
+const DLY_FREE_NM=900, DLY_PER_NM=0.0042, DLY_CONGEST=2.6, DLY_CONGEST_FREE=6;   // a hub pushes 6 departures per 30 min before its own bank congests (was 3)
 /* Ground time abroad: customs, security sweep, deep clean, catering uplift.
    Real carriers blocked 90 minutes minimum at foreign stations, often far more.
    A widebody cannot be turned in 25 minutes anywhere. */

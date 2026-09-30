@@ -59,11 +59,14 @@ function renderHubStats(E){
   const press=hubDepPressure(rots);
   const dl=rots.map((r,i)=>({r,i,...delayCauses(r,i,E,press)})).filter(x=>x.tot>=1).sort((a,b)=>b.tot-a.tot).slice(0,10);
   $('hubDelay').innerHTML=!rots.length?`<div class="empty">No flying yet.</div>`:!dl.length?`<div class="empty">Nothing expects meaningful delay.</div>`
-    :`<table class="fptab"><tr><th>Flight</th><th>Tail</th><th>Dep</th><th>Delay</th><th style="text-align:left;padding-left:10px">Main cause</th></tr>`
+    :`<table class="fptab"><tr><th>Flight</th><th>Tail</th><th>Dep</th><th>Delay</th><th>Pad</th><th style="text-align:left;padding-left:10px">Main cause</th><th></th></tr>`
       +dl.map(x=>{const c=[[x.bank,`crowded bank (${x.p} departures within ±15m)`],[x.expo,'long-leg exposure'],[x.knock,'knock-on from an earlier rotation']].sort((a,b)=>b[0]-a[0])[0];
         return `<tr class="clik" data-city="${x.r.dst}"><td><span class="fltno">${(nos[x.i]||{}).out||'—'}</span> ${x.r.dst}</td><td>${x.r.ac}</td><td>${fmt(x.r.dep)}</td>
-          <td style="color:${x.tot>=20?'var(--red)':'var(--amber)'}">+${Math.round(x.tot)}m</td><td style="text-align:left;padding-left:10px;color:var(--ink2);white-space:normal">${c[1]}</td></tr>`;}).join('')
-      +`</table><div class="note">Banks over ${DLY_CONGEST_FREE} departures per 30 minutes add delay; legs over ${DLY_FREE_NM} nm pick up weather/ATC exposure; ground slack absorbs knock-on delay.</div>`;
+          <td style="color:${x.tot>=20?'var(--red)':'var(--amber)'}">+${Math.round(x.tot)}m</td><td style="color:var(--ink3)">${x.r.pad?x.r.pad+'m':'—'}</td>
+          <td style="text-align:left;padding-left:10px;color:var(--ink2);white-space:normal">${c[1]}</td>
+          <td>${(x.r.pad||0)<30?`<span class="x" data-padfix="${x.i}" title="add block time to both hub legs to absorb this delay">pad +${Math.min(30-(x.r.pad||0),Math.ceil(x.tot/5)*5)}m</span>`:''}</td></tr>`;}).join('')
+      +`<div id="padmsg" class="note" style="color:var(--amber)"></div>`
+      +`</table><div class="note">Banks over ${DLY_CONGEST_FREE} departures per 30 minutes add delay; legs over ${DLY_FREE_NM} nm pick up weather/ATC exposure; ground slack absorbs knock-on delay. Padding adds scheduled block time to both hub legs: it absorbs delay, but the aircraft is busy longer.</div>`;
 
   /* gate utilization over the day */
   const cur=E.cur||[], G=gatesOwned;
@@ -82,3 +85,25 @@ function renderHubStats(E){
     <div class="note">${spare>0?`${spare} gate${spare>1?'s':''} sit empty even at peak — room to add peak-time flying without leasing more.`
       :`Every gate is used at peak. New flying in the peak ${pkT.length>1?'windows':'window'} needs another gate or a retimed departure.`}</div>`;
 }
+
+/* one-click padding: only applied if the aircraft has the slack for it */
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-padfix]'); if(!b)return;
+  const i=+b.getAttribute('data-padfix'), r=rots[i]; if(!r)return;
+  const E=evaluate(rots,owned,gatesOwned), add=Math.min(30-(r.pad||0),Math.ceil((E.delays[i]||0)/5)*5), pad=(r.pad||0)+add;
+  const before=scheduleViolations(rots,owned,gatesOwned,gateTiers).length, keep=rots[i];
+  pushUndo('pad '+r.ac);
+  rots[i]=mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,pad);
+  const after=scheduleViolations(rots,owned,gatesOwned,gateTiers);
+  if(after.length>before){
+    rots[i]=keep; undoStack.pop(); renderUndo();
+    const t=after.find(v=>v.kind==='turn'&&v.ac===r.ac);
+    $('padmsg').textContent=t?`No room to pad ${r.ac}: its next departure would get ${t.have}m on the ground (needs ${t.need}m). Retime that departure later first.`
+      :(()=>{const g=after.find(v=>v.kind==='gates'), tv=after.find(v=>v.kind==='gatetier');
+          return g?`Padding ${r.ac} by ${add}m brings it back ${add*2}m later, when all ${g.gates} gates at ${HUB.c} are already full — lease another gate or retime.`
+            :tv?`Padding ${r.ac} by ${add}m needs another ${tv.tier===2?'international':'heavy-capable'} gate at ${fmt(tv.start)} — upfit one or retime.`
+            :`Padding ${r.ac} by ${add}m would break the schedule at ${HUB.c} — retime instead.`;})();
+    return;
+  }
+  launched=false; render(); preview();
+});

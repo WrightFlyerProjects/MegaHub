@@ -90,9 +90,10 @@
       <div class="combo"><input id="destQ" type="text" autocomplete="off" placeholder="type a code or city…"><div class="clist" id="destL"></div></div>
       <label for="viaQ">Stop en route (optional)</label>
       <div class="combo"><input id="viaQ" type="text" autocomplete="off" placeholder="nonstop"><div class="clist" id="viaL"></div></div>
-      <div class="duo" style="margin-top:10px">
+      <div class="duo trio" style="margin-top:10px">
       <div><label for="depT" id="deplab">Dep</label><input type="time" id="depT" step="60" value="07:00"></div>
       <div><label for="turnN">Turn (min)</label><input type="number" id="turnN" min="25" max="720" step="5" value="45"></div>
+      <div><label for="padSel" title="Extra block time on each hub leg — absorbs expected delay, costs aircraft time">Pad (min)</label><select id="padSel"><option value="0">0</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option></select></div>
       </div>
       <input type="range" id="dep" min="0" max="1439" step="1" value="420">
       <input type="range" id="turn" min="25" max="720" step="1" value="45">
@@ -227,7 +228,7 @@
   Demand and the aircraft catalog step forward on the real schedule years — 1988, 1993, 1997, 2001, 2005.
   326 airports. Anything closer than 75 nm to your hub is a drive, not a flight. Indiana kept no daylight time in 1988.
   A bigger terminal is a slower one: minimum connect time rises 5 minutes for every 5 gates you lease, up to a 40-minute cap. Widebodies (200+ seats) need a heavy gate, and arrivals from abroad need an international (customs) gate to deplane — on the ground 90 minutes or more, only for the first 45, then they're towed off. Flights from Canada, Bermuda, Nassau and Aruba clear US customs before departure and arrive as domestic. Bigger gates take smaller aircraft when they're free.
-  Slack absorbs delay. An aircraft turned at the minimum, every time, carries the morning's delay all day — and its own connections stop working.
+  Slack absorbs delay. An aircraft turned at the minimum, every time, carries the morning's delay all day — and its own connections stop working. Padding a rotation adds scheduled block time to both of its hub legs: it soaks up expected delay, but keeps the aircraft busy longer.
   Connections are worth most around 30 minutes above the minimum, not at it.
   Customs adds 30 minutes to any connection arriving from abroad. ETOPS constrains twins; trijets and quads crossed oceans freely.
   Score is net passenger-miles — filled seat-miles minus a penalty for empty ones — on great-circle O&amp;D distance, revealed only when you launch.

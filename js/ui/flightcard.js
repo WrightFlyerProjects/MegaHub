@@ -1,7 +1,7 @@
 /* MegaHub · js/ui/flightcard.js — flight preview card in the rotation editor */
 /* ---------------- flight card ---------------- */
 const dcls=v=>v>=.72?'d-hi':v>=.45?'d-md':'d-lo';
-function renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr){
+function renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad){
   const rows=[], chips=[];
   const pa=pref(al), pd=pref(dl);
   const nextDay=dep+sh.dur>=DAY;
@@ -15,6 +15,7 @@ function renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr){
     rows.push(['Distance',`${Math.round(dHub[dst]).toLocaleString()} nm`]);
     rows.push(['Block out',hm(sh.legs[0].t)]);
     rows.push(['Block back',hm(sh.legs[1].t)]);
+    if(pad)rows.push(['Includes pad',`+${pad}m each hub leg`]);
   }
   rows.push(['sep']);
   const dot=(p)=>`<i class="dot ${dcls(p)}" title="demand at this hour of the local day"></i><em>${Math.round(p*100)}%</em>`;

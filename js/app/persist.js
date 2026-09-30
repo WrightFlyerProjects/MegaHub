@@ -15,7 +15,7 @@ function snapshot(){
     hub:HUB.c, year:year(),
     points, cumPm, results, gatesOwned, gateTiers, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
     fleet:owned.map(a=>({id:a.id,t:a.t})),
-    rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn})),
+    rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn,pad:r.pad||0})),
     last:lastE?{year:lastE.year,pm:lastE.pm,pax:lastE.pax,peak:lastE.peak,
       markets:slimMarkets(lastE.markets),local:slimLocal(lastE.local),perFlt:lastE.perFlt||null,
       perTail:lastE.perTail||null,pairRows:lastE.pairRows||null}:null};
@@ -36,9 +36,9 @@ function restore(s){
   (s.rots||[]).forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac);
     if(!ac||!A[r.dst]||r.dst===HUB.c){dropped.push({...r,why:'aircraft or city missing'});return;}
-    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null);
+    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0);
     if(err){dropped.push({...r,why:err});return;}
-    rots.push(mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn));
+    rots.push(mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,r.pad||0));
   });
   /* gate tiers: saves from before gate tiers get, free, exactly the upfits their schedule needs */
   if(s.gateTiers){gateTiers={H:s.gateTiers.H|0,I:s.gateTiers.I|0};}

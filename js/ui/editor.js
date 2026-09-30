@@ -110,14 +110,14 @@ function preview(){
   if(!ac){$('err').textContent='Buy an aircraft first';$('add').disabled=true;renderMoveRow();return;}
   if(gatesOwned<1){$('err').textContent='Lease at least one gate before you schedule';$('add').disabled=true;renderMoveRow();return;}
   $('add').disabled=false;
-  const dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null;
+  const dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null,pad=+$('padSel').value||0;
   if(!dst){$('fcard').innerHTML='<div class="empty">Pick a destination.</div>';$('add').disabled=true;return;}
   if(document.activeElement!==$('depT'))$('depT').value=hhmmStr(dep);
   if(document.activeElement!==$('turnN'))$('turnN').value=String(turn);
-  const sh=shape({dst,via,dep,turn},ac), m=sh.marks, arr=mod(dep+sh.dur);
+  const sh=shape({dst,via,dep,turn,pad},ac), m=sh.marks, arr=mod(dep+sh.dur);
   const al=mod((via?m.arrDst:m.arrDst)+tzD(dst)), dl=mod(m.depDst+tzD(dst));
-  renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr);
-  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx);
+  renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad);
+  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad);
   const heads=[];
   if(!verr&&acTier(ac)&&gateTiers.H+gateTiers.I===0)heads.push(`${ac.t} is a widebody — it needs a heavy gate at ${HUB.c}`);
   if(!verr&&customsIn(via||dst)&&gateTiers.I===0)heads.push(`the return from ${via||dst} arrives from abroad — it needs an international gate`);
@@ -130,7 +130,8 @@ function preview(){
 }
 const hhmm=v=>{const [h,m]=v.split(':').map(Number);return mod(h*60+m);};
 const hhmmStr=m=>{m=mod(Math.round(m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};  // 24h for <input type=time>
-function mkRot(acId,dst,via,dep,turn){
-  const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn},ac);
-  return {ac:acId,dst,via:via||null,dep:mod(dep),turn,b:sh.legs[0].t,dur:sh.dur,arr:mod(dep+sh.dur)};
+function mkRot(acId,dst,via,dep,turn,pad){
+  pad=pad||0;
+  const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn,pad},ac);
+  return {ac:acId,dst,via:via||null,dep:mod(dep),turn,pad,b:sh.legs[0].t,dur:sh.dur,arr:mod(dep+sh.dur)};
 }
