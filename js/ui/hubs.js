@@ -1,5 +1,5 @@
 /* MegaHub · js/ui/hubs.js — multi-hub UI: hub switcher, Hubs panel (open / view / close), moving idle aircraft between hubs */
-let newHubPick=null, newHubGates=2;
+let newHubPick=null, newHubGates=2, newHubOpen=false;   // the open-a-hub section starts folded away
 
 /* violations for any hub, using live data for the one being viewed */
 const hubProblems=c=>c===HC.c?scheduleViolations(rots,vFleet(),gatesOwned,gateTiers):hubViol(c);
@@ -30,13 +30,13 @@ function renderHubsPanel(){
       <td>${h.c===HC.c?'<span style="color:var(--ink3)">viewing</span>':`<span class="x" data-viewhub="${h.c}">view</span>`}${hs.length>1&&!h.fleet.length?` · <span class="x" data-closehub="${h.c}" title="no aircraft based here">close</span>`:''}</td></tr>`).join('');
   el.innerHTML=`<h2>Hubs <em>${hs.length===1?'one hub':hs.length+' hubs'}</em></h2>
     <div class="tscroll"><table class="fptab">${rows}</table></div>
-    ${avail.length&&hubOrder.length<10?`<div class="openhub">
-      <label for="newHubSel">Open a new hub</label>
+    ${avail.length&&hubOrder.length<10?`<details class="openhub" id="openHubBox"${newHubOpen?' open':''}>
+      <summary>Open a new hub</summary>
       <select id="newHubSel">${avail.map(c=>`<option value="${c}"${c===newHubPick?' selected':''}>${c} — ${A[c].n}</option>`).join('')}</select>
       <div class="openrow"><span>Gates</span><span class="stepper"><span data-nhm="1">−</span><span class="n">${g}</span><span data-nhp="1">+</span></span>
         <button id="openHub" ${cost>points?'disabled':''}>Open ${newHubPick||''} · ${cost} pts</button></div>
       ${preNote}<div class="note">${HUB_FEE} pts to open plus ${GATE_COST} per gate${cost>points?` · you have ${points}`:''}. Each hub runs its own schedule; connecting passengers between two cities are shared, so hubs compete for them. Aircraft are bought at the hub you're viewing, and idle ones can move between hubs from the roster.</div>
-    </div>`:''}`;
+    </details>`:''}`;
 }
 
 function afterHubChange(){syncAC();syncDest();renderHub();renderFleetPanel();render();preview();}
@@ -78,3 +78,4 @@ document.addEventListener('change',e=>{
   const id=e.target.getAttribute&&e.target.getAttribute('data-rebase');
   if(id&&e.target.value)rebase(id,e.target.value);
 });
+document.addEventListener('toggle',e=>{if(e.target.id==='openHubBox')newHubOpen=e.target.open;},true);

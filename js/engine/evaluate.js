@@ -141,7 +141,7 @@ function evalPrep(rots,fleet,gates,H,pre){
     if(crossHub(r,H)){             // one record per leg this hub owns, each with its own number
       const pr=perRot[i]||{}, del=Math.round(delays[i]||0);
       legPlan(r,ac,H).forEach(l=>{ if(l.owner!==H.c)return; const L=(pr.legs||[])[l.k]||{}, dep=l.a===H.c;
-        flights.push({ri:i,dir:dep?'out':'ret',leg:l.k,ac:r.ac,seats:ac.seats,no:l.no,from:l.a,to:l.b,via:null,
+        flights.push({ri:i,dir:dep?'out':'ret',leg:l.k,ac:r.ac,seats:ac.seats,no:(pre.num&&pre.num.get(H.c+'#'+i+'#L'+l.k))||l.no,from:l.a,to:l.b,via:null,
           hubTime:mod(dep?l.dep:l.arr),spokeTime:mod(dep?l.arr+tzD(l.b,H):l.dep+tzD(l.a,H)),
           local:L.local||0,connect:L.connect||0,pair:0,delay:del});});
       return;}
@@ -150,7 +150,7 @@ function evalPrep(rots,fleet,gates,H,pre){
     const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
     // outbound: hub -> (via ->) dst
     flights.push({ri:i, dir:'out', ac:r.ac, seats,
-      no:flightNo(hubC,r.dst,r.dep,r.via||null,'out',H.band),
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#out'))||flightNo(hubC,r.dst,r.dep,r.via||null,'out',H.band),
       from:hubC, to:r.dst, via:r.via||null,
       depHub:mod(m.depHub), depHubLoc:mod(m.depHub),        // hub local = depHub (hub tz baseline)
       arrSpokeLoc:mod(m.arrDst+tzd),
@@ -158,7 +158,7 @@ function evalPrep(rots,fleet,gates,H,pre){
       local:pr.outLocal||0, connect:pr.outConnect||0, pair:pr.outPair||0, delay:del});
     // return: dst -> (via ->) hub
     flights.push({ri:i, dir:'ret', ac:r.ac, seats,
-      no:flightNo(hubC,r.dst,r.dep,r.via||null,'ret',H.band),
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#ret'))||flightNo(hubC,r.dst,r.dep,r.via||null,'ret',H.band),
       from:r.dst, to:hubC, via:r.via||null,
       depSpokeLoc:mod(m.depDst+tzd), arrHub:mod(m.arrHub),
       hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),
@@ -180,7 +180,7 @@ function evalPrep(rots,fleet,gates,H,pre){
    counted once airline-wide: every hub's candidate connections compete in one ranking, and a
    market's capacity grows with the total number of itineraries offered across hubs. */
 function evaluateMulti(list){
-  const pre=list.map(()=>({}));
+  const NUM=numberFlights(list), pre=list.map(()=>({num:NUM}));
   if(list.some(o=>o.rots.some(r=>crossHub(r,o.H))))crossPrep(list,pre);
   const S=list.map((o,h)=>evalPrep(o.rots,o.fleet,o.gates,o.H,pre[h]));
   const all=[]; S.forEach((st,h)=>st.cands.forEach(c=>all.push({c,h})));
@@ -234,7 +234,7 @@ function crossPrep(list,pre){
           if(l.b===X)vi.push(tagP({ri,k:l.k,dir:'ret',spoke:l.a,legs:[cap],arrHub:mod(l.arr+tz),arrHubLoc:mod(l.arr+tz),origLocal:mod(l.dep+tzD(l.a,q.H)),block:l.t,mult:1,home:q.H.c},base));
           if(l.a===X)vo.push(tagP({ri,k:l.k,dir:'out',spoke:l.b,legs:[cap],depHub:mod(l.dep+tz),depHubLoc:mod(l.dep+tz),destLocal:mod(l.arr+tzD(l.b,q.H)),block:l.t,mult:1,home:q.H.c},base));
           if(l.owner===X){vs+=ac.seats*nm(A[l.a],A[l.b]); const dep=l.a===X;
-            vf.push({pr,k:l.k,rec:{visit:q.H.c,homeRi:ri,dir:dep?'out':'ret',leg:l.k,ac:r.ac,seats:ac.seats,no:l.no,from:l.a,to:l.b,via:null,
+            vf.push({pr,k:l.k,rec:{visit:q.H.c,homeRi:ri,dir:dep?'out':'ret',leg:l.k,ac:r.ac,seats:ac.seats,no:(pre[h].num&&pre[h].num.get(q.H.c+'#'+ri+'#L'+l.k))||l.no,from:l.a,to:l.b,via:null,
               hubTime:mod(dep?l.dep+tz:l.arr+tz),spokeTime:mod(dep?l.arr+tzD(l.b,q.H):l.dep+tzD(l.a,q.H)),delay:Math.round(del)}});}});});});
     pre[h].visitOut=vo; pre[h].visitIn=vi; pre[h].visitFlights=vf; pre[h].visitSeatMi=vs;});
 }

@@ -314,3 +314,8 @@ select.rebase{width:auto;display:inline-block;padding:2px 4px;font:500 10px var(
 /* ---------------- v3.9: cross-hub flying ---------------- */
 .lane.visiting{opacity:.72;background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(22,40,60,.025) 8px 16px)}
 .lane.visiting .tag i{color:var(--brand)}
+/* v3.10: open-a-hub folds away */
+details.openhub>summary{cursor:pointer;font:600 10px/1.4 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);list-style:none}
+details.openhub>summary::before{content:'▸ ';color:var(--ink3)} details.openhub[open]>summary::before{content:'▾ '}
+details.openhub>summary::-webkit-details-marker{display:none}
+details.openhub select{margin-top:8px}

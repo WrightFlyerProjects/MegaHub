@@ -70,7 +70,7 @@ function renderLanes(E){
       return `<div class="lane visiting"><div class="tag"><b>${l.ac.split(' · ')[0]}</b><i>${l.home} · ${l.t}</i></div><div class="track">`
         +seg(l.arrHC-l.blk,l.blk,'ret',l.a,`${l.ac} ${l.a}→${HUB.c} · flight ${l.flt} · arr ${fmt(l.arrHC)}`)
         +seg(l.arrHC,ground,'turn','',`${ground}m on the ground at ${HUB.c}`)
-        +seg(out,n.t,'out',n.b,`${l.ac} ${HUB.c}→${n.b} · flight ${n.no} · dep ${fmt(out)}`)+`</div></div>`;}).join('');
+        +seg(out,n.t,'out',n.b,`${l.ac} ${HUB.c}→${n.b} · flight ${l.nextNo} · dep ${fmt(out)}`)+`</div></div>`;}).join('');
 }
 
 function renderSchedule(E){
@@ -82,11 +82,19 @@ function renderSchedule(E){
   // number and load. We read E.flights (per-leg records from the engine). When the current
   // year isn't launched we fall back to last year's result for the same flight number.
   const lastFlt=(!launched&&lastE&&lastE.perFlt)?lastE.perFlt:null;
+  /* last year's record for a flight: by number only if it really is this flight (same route and
+     aircraft) — numbers can change when the schedule changes — else by route and aircraft */
+  const lastBy={}; if(lastFlt)Object.values(lastFlt).forEach(p=>{const k=p.from+'>'+p.to+'>'+p.ac;(lastBy[k]=lastBy[k]||[]).push(p);});
+  const same=(p,f)=>p&&p.from===f.from&&p.to===f.to&&p.ac===f.ac;
+  const hashNo=f=>{if(f.visit)return null; const r=rots[f.ri], ac=r&&owned.find(a=>a.id===r.ac); if(!ac)return null;   // the number before v3.10 (older saves use it)
+    return f.leg!=null?legPlan(r,ac,HC)[f.leg].no:flightNo(HC.c,r.dst,r.dep,r.via||null,f.dir,HC.band);};
+  const lastOf=f=>{if(same(lastFlt[f.no],f))return lastFlt[f.no]; const h=hashNo(f); if(h!=null&&same(lastFlt[h],f))return lastFlt[h];
+    const q=lastBy[f.from+'>'+f.to+'>'+f.ac]; return q&&q.length===1?q[0]:null;};
   const legs=(E.flights||[]).map(f=>{
     const r=f.visit?{ac:`${f.ac} · ${f.visit}`,turn:0}:rots[f.ri];
     let local=0,connect=0,pair=0,d=f.delay,src='none';
     if(launched){ local=f.local;connect=f.connect;pair=f.pair;src='live'; }
-    else if(lastFlt&&lastFlt[f.no]){ const p=lastFlt[f.no]; local=p.local;connect=p.connect;pair=p.pair;d=p.delay;src='last'; }
+    else if(lastFlt&&lastOf(f)){ const p=lastOf(f); local=p.local;connect=p.connect;pair=p.pair;d=p.delay;src='last'; }
     const carried=local+connect+pair, lf=f.seats?Math.min(1,carried/f.seats):0;
     return {f,r,ri:f.visit?'v'+f.no:f.ri,flt:f.no,dir:f.dir,from:f.from,to:f.to,via:f.via,
       dep:f.spokeTime!=null&&f.dir==='ret'?f.spokeTime:f.hubTime,   // the flight's own departure
@@ -224,15 +232,26 @@ renderSchedule(E);
 /* Every leg a rotation flies: flight number, origin, destination, and departure/arrival times
    each in the local time of its own airport (hub local = the hub's clock). A through flight
    keeps one number across both legs of its direction. */
-function rotLegs(r,ac){
-  if(crossHub(r,HC)){const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;
-    return legPlan(r,ac,HC).map(l=>({flt:l.no,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,HC)),arr:mod(l.arr+tzD(l.b,HC)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));}
-  const m=shape(r,ac,HC).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
+function rotLegs(r,ac,Hh,home,ri){
+  Hh=Hh||HC; home=home||Hh.c; if(ri==null)ri=rots.indexOf(r);
   const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;        // 2-day line: whoever is on this part of the cycle today
-  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,HC)),arr:mod(arr+tzD(b,HC)),ac:tailAt(dep),t:ac.t});
+  if(crossHub(r,Hh))
+    return legPlan(r,ac,Hh).map(l=>({flt:numOf(home+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));
+  const hc=Hh.c, m=shape(r,ac,Hh).marks;
+  const out=numOf(home+'#'+ri+'#out',flightNo(hc,r.dst,r.dep,r.via||null,'out',Hh.band)),
+        ret=numOf(home+'#'+ri+'#ret',flightNo(hc,r.dst,r.dep,r.via||null,'ret',Hh.band));
+  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,Hh)),arr:mod(arr+tzD(b,Hh)),ac:tailAt(dep),t:ac.t});
   return r.via
-    ?[L(out,HUB.c,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,HUB.c,m.depVia2,m.arrHub)]
-    :[L(out,HUB.c,r.dst,m.depHub,m.arrDst),L(ret,r.dst,HUB.c,m.depDst,m.arrHub)];
+    ?[L(out,hc,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,hc,m.depVia2,m.arrHub)]
+    :[L(out,hc,r.dst,m.depHub,m.arrDst),L(ret,r.dst,hc,m.depDst,m.arrHub)];
+}
+/* every leg touching city c, flown by any of the airline's aircraft (all hubs) */
+function allLegsAt(c){
+  const out=[], multi=hubOrder.length>1, hs=multi?netHubs():[{c:HC.c,H:HC,rots,fleet:owned}];
+  hs.forEach(h=>h.rots.forEach((r,ri)=>{const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
+    rotLegs(r,ac,h.c===HC.c?HC:h.H,h.c,ri).forEach(l=>{if(l.a!==c&&l.b!==c)return;
+      if(h.c!==HC.c)l.ac=`${l.ac} · ${h.c}`; out.push(l);});}));
+  return out;
 }
 /* legs flown by OTHER hubs' aircraft that pass the filter; times local to each airport, plus in this hub's clock */
 function visitLegs(filter){
@@ -241,17 +260,15 @@ function visitLegs(filter){
   netHubs().forEach(h=>{ if(h.c===HC.c)return;
     h.rots.forEach((r,ri)=>{ if(!crossHub(r,h.H))return; const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
       legPlan(r,ac,h.H).forEach((l,k,L)=>{ if(!filter(l,L[k+1]))return;
-        out.push({flt:l.no,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,h.H)),arr:mod(l.arr+tzD(l.b,h.H)),ac:`${r.ac} · ${h.c}`,t:ac.t,owner:l.owner,
-          depHC:mod(l.dep+tzD(HC.c,h.H)),arrHC:mod(l.arr+tzD(HC.c,h.H)),blk:l.t,home:h.c,key:h.c+':'+ri+':'+k,next:L[k+1]||null,hH:h.H});});});});
+        out.push({flt:numOf(h.c+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,h.H)),arr:mod(l.arr+tzD(l.b,h.H)),ac:`${r.ac} · ${h.c}`,t:ac.t,owner:l.owner,
+          depHC:mod(l.dep+tzD(HC.c,h.H)),arrHC:mod(l.arr+tzD(HC.c,h.H)),blk:l.t,home:h.c,key:h.c+':'+ri+':'+k,next:L[k+1]||null,nextNo:L[k+1]?numOf(h.c+'#'+ri+'#L'+(k+1),L[k+1].no):null,hH:h.H});});});});
   return out;
 }
 function renderCity(c,E){
   const s=A[c]; if(!s||c===HUB.c){$('city').style.display='none';return;}
   selCity=c;$('city').style.display='block';
   const arr=[], dep=[];
-  rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
-    rotLegs(r,ac).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});});
-  visitLegs(l=>l.owner===HC.c&&(l.a===c||l.b===c)).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});   // this hub's flights on visiting aircraft
+  allLegsAt(c).forEach(l=>{if(l.b===c)arr.push(l); if(l.a===c)dep.push(l);});   // every flight at this city, whichever hub flies it
   arr.sort((a,b)=>a.arr-b.arr); dep.sort((a,b)=>a.dep-b.dep);
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
@@ -277,9 +294,7 @@ function renderHubCard(E){
   selCity=HUB.c; $('city').style.display='block';
   // every hub departure and arrival across the whole schedule, in hub-local time
   const deps=[], arrs=[];
-  rots.forEach(r=>{const ac=owned.find(a=>a.id===r.ac); if(!ac)return;
-    rotLegs(r,ac).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});});
-  visitLegs(l=>l.a===HUB.c||l.b===HUB.c).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});   // other hubs' aircraft here
+  allLegsAt(HUB.c).forEach(l=>{if(l.a===HUB.c)deps.push(l); if(l.b===HUB.c)arrs.push(l);});   // every flight here, including other hubs' aircraft
   deps.sort((a,b)=>a.dep-b.dep); arrs.sort((a,b)=>a.arr-b.arr);
   const peak=E.peak, gates=gatesOwned;
   $('city').innerHTML=`<div class="cityhead">

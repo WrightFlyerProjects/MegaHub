@@ -68,9 +68,11 @@ function airEval(){
      from its totals (exact); per-hub nets are attributions */
   if(hs.some(h=>h.rots.some(r=>crossHub(r,h.H)))){total.emptyMi=Math.max(0,total.seatMi-total.pm); total.netPm=total.pm-EMPTY_W*total.emptyMi;}
   if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
-  _airE={byHub,total,hubs:hs}; _airSig=sig; return _airE;
+  _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs))}; _airSig=sig; return _airE;
 }
 const evalView=()=>airEval().byHub[HC.c];
+/* the airline's one flight-number assignment (unique per hub) */
+const numOf=(key,fallback)=>{const m=airEval().nums; return (m&&m.get(key))||fallback;};
 const hubViol=c=>{const h=hubStore[c]; return h?scheduleViolations(h.rots,vFleetOf(c),h.gates,h.tiers):[];};
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
