@@ -96,7 +96,7 @@ const pMake=slack=>1/(1+Math.exp(-(slack-8)/6)); // probability a connection act
 
 /* Every rotation must still be legal after the fleet changes.
    Buying a third aircraft type lengthens the hub turn and can strand old rotations. */
-function scheduleViolations(rots,fleet,gates){
+function scheduleViolations(rots,fleet,gates,tiers){
   const v=[], mt=minTurnHub(fleet);
   fleet.forEach(a=>{
     const rs=acRots(rots,a.id); if(!rs.length)return;
@@ -109,10 +109,11 @@ function scheduleViolations(rots,fleet,gates){
   });
   const peak=rots.length?Math.max(...gateCurve(rots,fleet)):0;
   if(peak>gates) v.push({kind:'gates',peak,gates});
+  tierViolations(rots,fleet,tiers).forEach(x=>v.push(x));
   return v;
 }
 /* minimal repair: push the offending departures later, cascading, never reordering */
-function repairSchedule(rots,fleet,gates){
+function repairSchedule(rots,fleet,gates,tiers){
   const mt=minTurnHub(fleet);
   const out=rots.map(r=>({...r}));
   for(let pass=0;pass<3;pass++){
@@ -125,7 +126,7 @@ function repairSchedule(rots,fleet,gates){
       }
     });
   }
-  const left=scheduleViolations(out,fleet,gates);
+  const left=scheduleViolations(out,fleet,gates,tiers);
   return {ok:left.length===0,rots:out,left};
 }
 /* when is this aircraft actually free? windows a new rotation could start in */

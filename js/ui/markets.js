@@ -22,7 +22,7 @@ function connTiming(){
   return {inb,outb,mct:mctFor(gatesOwned)};
 }
 function pairTiming(T,i,j){
-  const need=T.mct+(A[i].intl?CUSTOMS:0); let ok=0,best=null;
+  const need=T.mct+(customsIn(i)?CUSTOMS:0); let ok=0,best=null;
   (T.inb[i]||[]).forEach(a=>(T.outb[j]||[]).forEach(b=>{
     if(a.ri===b.ri)return;
     const ct=mod(b.t-a.t);
@@ -113,7 +113,7 @@ function renderMarketsTab(E){
 
   $('mexplab').textContent=live?`${era().year} results`:stale?`loads: ${lastE.year} · last year`:'loads hidden until you launch';
   $('mexp').innerHTML=`<div class="mexphead"><div><b>${c} — ${A[c].n}</b><br>
-      <i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h${A[c].intl?' · international (customs on connections)':''}</i></div>
+      <i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c)>=0?'+':''}${tzD(c)/60}h${A[c].intl?(PRECLEAR.has(c)?' · international · US preclearance (arrives as domestic)':' · international (customs on connections)'):''}</i></div>
       <div><span class="x" data-city="${c}" style="margin-right:14px">city card</span><span class="x" data-mdest="${c}">schedule a flight here →</span></div></div>
     <div class="cols" style="margin-top:6px">
       <div><h3 class="sub3">Local market (to/from ${HUB.c})</h3>${loc}${prHtml}</div>

@@ -16,3 +16,11 @@ const TURN_INTL=90, TURN_WIDE=45;
 /* block time = taxi + climb/descent allowance + still-air cruise, adjusted for the
    prevailing westerlies. Eastbound rides the jet stream; westbound fights it. */
 const CLIMB=12, JET_KT=55;
+/* Gate tiers, nested: 0 standard · 1 heavy (widebody-capable) · 2 international (customs, also
+   widebody-capable). A gate takes its own tier and everything below it. */
+const GATE_UP_H=4, GATE_UP_I=6;          // upfit costs in points: standard→heavy, heavy→international
+const HEAVY_SEATS=200;                   // the widebody line (same one TURN_WIDE uses)
+const TOW_AFTER=45, TOW_MIN_GROUND=90;   // on the ground 90m+: customs gate needed only for the first 45m
+/* US preclearance, era-accurate for 1988–2005: these flights clear US customs before departure,
+   so they arrive as domestic — no customs gate, no customs time on connections. */
+const PRECLEAR=new Set(['YYZ','YVR','YUL','YYC','BDA','NAS','AUA']);

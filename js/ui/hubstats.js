@@ -71,11 +71,14 @@ function renderHubStats(E){
   const avg=cur.reduce((a,v)=>a+v,0)/cur.length, idle=cur.reduce((a,v)=>a+Math.max(0,G-v),0)/60;
   const hot=cur.filter(v=>v>=G*0.9).length, spare=G-E.peak;
   const pkT=[];cur.forEach((v,t)=>{if(v===E.peak&&(!pkT.length||t-pkT[pkT.length-1][1]>1))pkT.push([t,t]);else if(v===E.peak)pkT[pkT.length-1][1]=t;});
-  const mNow=mctFor(G), mLess=mctFor(Math.max(1,E.peak));
+  const tc=gateTierCurves(rots,owned), nI=Math.max(0,...tc.i), nH=Math.max(0,...tc.h);
+  const park=gateAssign(rots,owned,G,gateTiers), br=park.filter(s=>s.borrowed), tw=park.filter(s=>s.tow).length;
   const kv=(k,v)=>`<tr><td>${k}</td><td>${v}</td></tr>`;
   $('hubGates').innerHTML=`<table>${kv('Gates leased',G)}${kv('Peak in use',`${E.peak} (${Math.round(E.peak/G*100)}%)`)}
     ${kv('Average in use',`${avg.toFixed(1)} (${Math.round(avg/G*100)}%)`)}${kv('Idle gate-hours / day',Math.round(idle))}
-    ${kv('Time at 90%+ full',hm(hot))}${kv('Peak moments',pkT.slice(0,3).map(([a,b])=>b>a?`${fmt(a)}–${fmt(b)}`:fmt(a)).join(', ')+(pkT.length>3?' …':''))}</table>
-    <div class="note">${spare>0?`${spare} gate${spare>1?'s':''} sit empty even at peak — releasing ${spare>1?'them':'it'} saves ${spare} pt/yr upkeep${mLess<mNow?` and cuts minimum connect from ${mNow}m to ${mLess}m`:''}.`
+    ${kv('Time at 90%+ full',hm(hot))}${kv('Peak moments',pkT.slice(0,3).map(([a,b])=>b>a?`${fmt(a)}–${fmt(b)}`:fmt(a)).join(', ')+(pkT.length>3?' …':''))}
+    ${kv('International gates',`${gateTiers.I} · peak need ${nI}`)}${kv('Heavy-capable gates',`${gateTiers.H+gateTiers.I} · peak need ${nH}`)}
+    ${kv('Borrowed bigger gate',br.length?`${new Set(br.map(s=>s.ac)).size} aircraft · ${hm(br.reduce((a,s)=>a+s.len,0))}/day`:'never')}${kv('Tows',tw||'none')}</table>
+    <div class="note">${spare>0?`${spare} gate${spare>1?'s':''} sit empty even at peak — room to add peak-time flying without leasing more.`
       :`Every gate is used at peak. New flying in the peak ${pkT.length>1?'windows':'window'} needs another gate or a retimed departure.`}</div>`;
 }

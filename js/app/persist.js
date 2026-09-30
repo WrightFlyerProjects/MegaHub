@@ -13,7 +13,7 @@ function snapshot(){
   return {v:SAVE_VERSION, ts:Date.now(),
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     hub:HUB.c, year:year(),
-    points, cumPm, results, gatesOwned, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
+    points, cumPm, results, gatesOwned, gateTiers, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
     fleet:owned.map(a=>({id:a.id,t:a.t})),
     rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn})),
     last:lastE?{year:lastE.year,pm:lastE.pm,pax:lastE.pax,peak:lastE.peak,
@@ -40,9 +40,15 @@ function restore(s){
     if(err){dropped.push({...r,why:err});return;}
     rots.push(mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn));
   });
+  /* gate tiers: saves from before gate tiers get, free, exactly the upfits their schedule needs */
+  if(s.gateTiers){gateTiers={H:s.gateTiers.H|0,I:s.gateTiers.I|0};}
+  else{const c=gateTierCurves(rots,owned), I=Math.min(gatesOwned,Math.max(0,...c.i)),
+      H=Math.min(gatesOwned-I,Math.max(0,Math.max(0,...c.h)-I));
+    gateTiers={H,I};
+    tierNotice=(H||I)?`Gate tiers are new: widebodies need heavy gates and arrivals from abroad need international (customs) gates. To keep your schedule legal, ${I} of your gates were upgraded to international and ${H} to heavy, free.`:null;}
   launched=!!s.launched && dropped.length===0;
   lastE=s.last||null;
-  pending={}; gatesPending=0; editIdx=null; selCity=null; destSel=''; viaSel='';
+  pending={}; gatesPending=0; tierPend={H:0,I:0}; editIdx=null; selCity=null; destSel=''; viaSel='';
   return dropped;
 }
 

@@ -21,7 +21,7 @@ function renderHub(){
 }
 function renderFleetPanel(){
   const avail=availTypes();
-  $('bpts').textContent=points+' pts · upkeep '+upkeepPts(owned,gatesOwned)+'/yr';
+  $('bpts').textContent=points+' pts · upkeep '+upkeepPts(owned,gatesOwned,gateTiers)+'/yr';
   $('hdrPts').innerHTML=`Points<br>${points}`;
   $('cat').innerHTML=avail.map(c=>{
     const have=owned.filter(o=>o.t===c.t).length, add=pending[c.t]||0;
@@ -30,6 +30,18 @@ function renderFleetPanel(){
       <span class="stepper"><span data-m="${c.t}">−</span><span class="n">${add}</span><span data-p="${c.t}">+</span></span>`;}).join('');
   const cost=spendNow(), over=cost>points;
   $('gnum').textContent=gatesOwned+gatesPending;
+  /* gate tiers: counts at each tier, what the schedule needs at peak, and pending upfits */
+  const tn=tierNext(), tc=gateTierCurves(rots,owned), needI=Math.max(0,...tc.i), needH=Math.max(0,...tc.h);
+  const std=gatesOwned+gatesPending-tn.H-tn.I;
+  $('tiercat').innerHTML=`<div><b>Heavy</b><i>widebodies (200+ seats) · upkeep 2/yr</i></div>
+      <span style="color:var(--ink3);font-size:11px">+${GATE_UP_H}pt</span>
+      <span class="stepper"><span data-hm="1">−</span><span class="n">${tn.H}</span><span data-hp="1">+</span></span>
+    <div><b>International</b><i>customs for arrivals from abroad · takes widebodies · upkeep 3/yr</i></div>
+      <span style="color:var(--ink3);font-size:11px" title="+${GATE_UP_I}pt when upgrading a heavy gate">+${GATE_UP_H+GATE_UP_I}pt</span>
+      <span class="stepper"><span data-im="1">−</span><span class="n">${tn.I}</span><span data-ip="1">+</span></span>`;
+  const okI=tn.I>=needI, okH=tn.H+tn.I>=needH;
+  $('gatemix').innerHTML=`<div class="gatemix"><span>${std} standard · ${tn.H} heavy · ${tn.I} international</span>
+    <span style="color:${okI&&okH?'var(--green)':'var(--red)'}">schedule needs ${needI} intl${needH>needI?` + ${needH-needI} heavy`:''} at peak${okI&&okH?' ✓':''}</span></div>`;
   $('bbar').style.width=Math.min(100,points?cost/points*100:0)+'%';
   $('bbar').className=over?'over':'';
   const f=[...owned,...pendingList()];
@@ -38,7 +50,7 @@ function renderFleetPanel(){
      `<div class="bs spend"><span>Spend</span><b>${cost} pt</b></div>`
     +`<div class="bs${over?' over':''}"><span>Points left</span><b>${points-cost}</b></div>`
     +`<div class="bs"><span>Fleet</span><b>${f.length} aircraft</b></div>`
-    +`<div class="bs"><span>Gates</span><b>${gatesOwned+gatesPending}</b></div>`
+    +`<div class="bs"><span>Gates</span><b>${gatesOwned+gatesPending}${tn.H||tn.I?` <span style="color:var(--ink3);font-weight:400">(${tn.H}H · ${tn.I}I)</span>`:''}</b></div>`
     +`<div class="bs"><span>Aircraft types</span><b>${f.length?nT:'—'}</b></div>`
     +`<div class="bs"><span>Hub turn</span><b>${f.length?turn+'m':'—'}</b></div>`;
   const prospect=[...owned,...pendingList()], newG=gatesOwned+gatesPending;
@@ -49,6 +61,8 @@ function renderFleetPanel(){
       +(broke?` — strands ${broke} rotation${broke>1?'s':''}`:'')+`</div>`;}
   if(mctFor(newG)>MCTg())
     warn+=`<div style="font:500 11px/1.5 var(--mono);color:var(--amber);margin-top:4px">Min connect rises to ${mctFor(newG)}m — a bigger terminal is a slower one</div>`;
+  if(!okI||!okH)
+    warn+=`<div style="font:500 11px/1.5 var(--mono);color:var(--red);margin-top:4px">Not enough ${!okI?'international':'heavy-capable'} gates for your schedule — upfit ${!okI?needI-tn.I+' to international':needH-tn.H-tn.I+' to heavy'} before you launch</div>`;
   $('warn').innerHTML=warn;
   $('build').disabled=over||(cost===0);
   renderRoster();
@@ -201,19 +215,25 @@ function renderStats(E){
     ['On-time',rots.length?Math.round(E.otp*100)+'%':'—',
       rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m`:'no flying','v']
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
-  const viol=scheduleViolations(rots,owned,gatesOwned);
+  const viol=scheduleViolations(rots,owned,gatesOwned,gateTiers);
   if(viol.length){
-    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates');
+    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier');
     $('viol').style.display='block';
     $('viol').innerHTML=`<h2 style="border-color:rgba(178,58,58,.3);color:var(--red)">Schedule no longer legal</h2>`
       +(turns.length?`<div class="rowv" style="margin-bottom:6px"><span>${turns.length} rotation${turns.length>1?'s':''} break the ${minTurnHub(owned)}-minute hub turn</span></div>`
         +`<table>${turns.slice(0,6).map(v=>`<tr><td>${v.ac} → ${v.dst}</td><td>${v.have}m on the ground</td><td style="color:var(--red)">needs ${v.need}m</td></tr>`).join('')}</table>`:'')
       +(gate?`<div class="rowv" style="margin-top:6px"><span>Peak gate demand ${gate.peak} exceeds ${gate.gates} leased</span></div>`:'')
+      +(tiers.length?`<table style="margin-top:6px">${tiers.slice(0,6).map(v=>`<tr><td style="text-align:left">${v.tier===2
+          ?`${v.peak} arrivals from abroad need customs gates`:`${v.peak} aircraft need heavy-capable gates <span style="color:var(--ink3)">(widebodies + customs arrivals)</span>`}</td>
+          <td>${fmt(v.start)}–${fmt(v.end)}</td><td style="color:var(--red)">you have ${v.have}</td></tr>`).join('')}</table>
+          <div class="note">Upfit gates on the Fleet tab, or retime so fewer overlap. International gates also take widebodies.</div>`:'')
       +(turns.length?`<button id="autofix">Nudge departures later</button>`:'');
     if(turns.length)$('autofix').onclick=()=>{
       const r=repairSchedule(rots,owned,gatesOwned);
       rots=r.rots; launched=false; editIdx=null; render(); preview();};
   } else $('viol').style.display='none';
+  const tnb=$('tiernote'); if(tnb){tnb.style.display=tierNotice?'block':'none';
+    if(tierNotice)tnb.innerHTML=`<span>${tierNotice}</span><span class="x" data-tnclose="1">✕</span>`;}
   const e0=era(), lastYear=e0.year===YEAR_MAX;
   $('launch').textContent = launched ? `${e0.year} flown` :
     viol.length ? 'Fix the schedule first' :
@@ -243,7 +263,7 @@ function renderAward(){
       :`<button id="advance">Continue to ${flownYear+1}${nextLeap?' — new schedule data':''}</button>`}`;
   if(!last)$('advance').onclick=()=>{
     setYear(flownYear+1);                     // roll the calendar forward now
-    launched=false; editIdx=null; pending={}; gatesPending=0; lastAward=null;
+    launched=false; editIdx=null; pending={}; gatesPending=0; tierPend={H:0,I:0}; lastAward=null;
     undoStack=[];                             // a new year is a fresh undo context
     markYearStart();                          // remember how the airline looks as the year opens
     renderHub();renderFleetPanel();render();preview();

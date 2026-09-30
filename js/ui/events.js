@@ -8,7 +8,13 @@ $('cat').addEventListener('click',e=>{
 document.addEventListener('click',e=>{
   const g=e.target.getAttribute&&e.target.getAttribute('data-gp'),gm=e.target.getAttribute&&e.target.getAttribute('data-gm');
   if(g){gatesPending=Math.min(MAX_GATES-gatesOwned,gatesPending+1);renderFleetPanel();return;}
-  if(gm){gatesPending=Math.max(0,gatesPending-1);renderFleetPanel();return;}
+  if(gm){if(gatesPending>0&&stdFree()>0)gatesPending--;renderFleetPanel();return;}
+  const tq=a=>e.target.getAttribute&&e.target.getAttribute(a);
+  if(tq('data-hp')){if(stdFree()>0)tierPend.H++;renderFleetPanel();return;}
+  if(tq('data-hm')){if(tierPend.H>0)tierPend.H--;renderFleetPanel();return;}
+  if(tq('data-ip')){if(stdFree()>0)tierPend.I++;else if(tierNext().H>0){tierPend.H--;tierPend.I++;}renderFleetPanel();return;}
+  if(tq('data-im')){if(tierPend.I>0){tierPend.I--;if(tierPend.H<0)tierPend.H++;}renderFleetPanel();return;}
+  if(tq('data-tnclose')){tierNotice=null;render();return;}
   // move a route to another aircraft (#4)
   const mv=e.target.closest&&e.target.closest('[data-move]');
   if(mv){doMove(mv.getAttribute('data-move'));return;}
@@ -119,7 +125,7 @@ $('build').onclick=()=>{
   const cost=spendNow(); if(cost>points||!cost)return;
   pushUndo('purchase');
   pendingList().forEach(x=>owned.push({id:'N'+(acSeq++),...CATALOG.find(c=>c.t===x.t)}));
-  gatesOwned+=gatesPending; points-=cost; pending={};gatesPending=0;
+  gatesOwned+=gatesPending; gateTiers=tierNext(); points-=cost; pending={};gatesPending=0;tierPend={H:0,I:0};
   syncAC();syncDest();renderHub();renderFleetPanel();render();preview();};
 $('ac').addEventListener('input',()=>{syncDest();enforceTurn();snapToFree();preview();});
 document.addEventListener('change',e=>{
@@ -193,11 +199,11 @@ $('clearac').onclick=()=>{
 };
 $('launch').onclick=()=>{
   if(!rots.length||launched)return;
-  if(scheduleViolations(rots,owned,gatesOwned).length)return;
+  if(scheduleViolations(rots,owned,gatesOwned,gateTiers).length)return;
   const E=evaluate(rots,owned,gatesOwned);
   const e=era();
   const score=E.netPm;                        // NET pax-miles is the score
-  const gross=grossPts(Math.max(0,score)), up=upkeepPts(owned,gatesOwned), net=gross-up;
+  const gross=grossPts(Math.max(0,score)), up=upkeepPts(owned,gatesOwned,gateTiers), net=gross-up;
   launched=true; editIdx=null;
   // per-flight results keyed by flight number, so they survive schedule changes into next year
   // capture per-LEG results keyed by discrete flight number, so each flight (out and

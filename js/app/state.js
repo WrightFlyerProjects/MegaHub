@@ -10,6 +10,7 @@ let undoStack=[], undoLabel='';   // #5 undo: snapshots taken before each mutati
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};
+let gateTiers={H:0,I:0}, tierPend={H:0,I:0}, tierNotice=null;   // gates upfit to Heavy / International (of gatesOwned), pending upfits
 let owned=[], pending={}, gatesOwned=0, gatesPending=0, points=0, cumPm=0,
     rots=[], launched=false, selCity=null, editIdx=null, results=[], acSeq=801;
 const $=id=>document.getElementById(id);
@@ -21,11 +22,13 @@ const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','S
 
 function startGame(){
   setYear(YEAR_MIN); setHub('DFW');
-  owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;
+  owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;gateTiers={H:0,I:0};tierPend={H:0,I:0};tierNotice=null;
   rots=[];launched=false;selCity=null;editIdx=null;results=[];acSeq=801;lastE=null;committed={};
 }
 const pendingList=()=>{const p=[];CATALOG.forEach(c=>{for(let i=0;i<(pending[c.t]||0);i++)p.push({t:c.t});});return p;};
-const spendNow=()=>fleetCost(pendingList())+gatesPending*GATE_COST;
+const tierNext=()=>({H:gateTiers.H+tierPend.H,I:gateTiers.I+tierPend.I});
+const stdFree=()=>gatesOwned+gatesPending-tierNext().H-tierNext().I;   // standard gates left to upfit
+const spendNow=()=>fleetCost(pendingList())+gatesPending*GATE_COST+upfitCost(gateTiers,tierNext());
 
 function seg(s,len,cls,lab,title){
   s=mod(s);let h='';const a=Math.min(len,DAY-s);

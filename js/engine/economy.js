@@ -15,5 +15,8 @@ const minTurnHub=f=>{const n=typeCount(f);return n<=1?25:n===2?32:40;};
 /* points economy. Gross rewards traffic; upkeep is the counterweight that keeps
    the fleet from growing without limit. This is operating cost in points, not dollars. */
 const grossPts=pm=>Math.max(0,Math.min(200,Math.round(pm/60000)));  // takes netPm now
-const upkeepPts=(fleet,gates)=>Math.round(0.12*fleetCost(fleet))+gates;
+const upkeepPts=(fleet,gates,tiers)=>Math.round(0.12*fleetCost(fleet))+gates+(tiers?tiers.H+2*tiers.I:0);   // heavy gate 2/yr, international 3/yr
+/* upfit cost from one tier mix to another (upgrades only): every gate that becomes heavy-capable
+   pays GATE_UP_H, every gate that becomes international pays GATE_UP_I on top */
+const upfitCost=(from,to)=>Math.max(0,(to.H+to.I)-(from.H+from.I))*GATE_UP_H+Math.max(0,to.I-from.I)*GATE_UP_I;
 const netPts=(pm,fleet,gates)=>grossPts(pm)-upkeepPts(fleet,gates);

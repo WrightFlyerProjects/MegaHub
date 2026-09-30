@@ -81,13 +81,17 @@ function evaluate(rots,fleet,gates){
   inn.forEach(Ap=>out.forEach(Bp=>{
     if(Ap.ri===Bp.ri||Ap.spoke===Bp.spoke)return;
     const i=Ap.spoke,j=Bp.spoke;
-    const need=MCT_G+(A[i].intl?CUSTOMS:0);        // clearing customs takes time
+    const need=MCT_G+(customsIn(i)?CUSTOMS:0);
+    /* attractiveness is judged against the customs-inclusive minimum for every arrival from abroad,
+       so preclearance only ever helps: it makes 40–69m connections possible and adds buffer,
+       without making an existing 70m+ connection look slower. (Identical to before elsewhere.) */
+    const refMin=MCT_G+(A[i].intl?CUSTOMS:0);        // clearing customs takes time
     const ct=mod(Bp.depHub-Ap.arrHub); if(ct<need||ct>MAXCT)return;
     const d=dPair[i+j];
     const r=(dHub[i]+dHub[j])/d, tol=0.18+0.00022*d;
     const del=D[Ap.ri]||0;
     const P=pMake(ct-need-del);                    // late inbound eats the buffer
-    const timeF=Math.pow(0.80,(ct-need)/60);
+    const timeF=Math.min(1,Math.pow(0.80,(ct-refMin)/60));
     const circF=1/(1+Math.pow(Math.max(0,r-1)/tol,2));
     const v=0.94*timeF*circF*P*pw(Ap.origLocal)*pw(Bp.destLocal)*Ap.mult*Bp.mult;
     if(v<0.02)return;

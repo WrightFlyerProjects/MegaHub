@@ -117,7 +117,12 @@ function preview(){
   const sh=shape({dst,via,dep,turn},ac), m=sh.marks, arr=mod(dep+sh.dur);
   const al=mod((via?m.arrDst:m.arrDst)+tzD(dst)), dl=mod(m.depDst+tzD(dst));
   renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr);
-  $('err').textContent=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx)||'';
+  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx);
+  const heads=[];
+  if(!verr&&acTier(ac)&&gateTiers.H+gateTiers.I===0)heads.push(`${ac.t} is a widebody — it needs a heavy gate at ${HUB.c}`);
+  if(!verr&&customsIn(via||dst)&&gateTiers.I===0)heads.push(`the return from ${via||dst} arrives from abroad — it needs an international gate`);
+  if(verr)$('err').textContent=verr;
+  else $('err').innerHTML=heads.length?`<span style="color:var(--amber)">Heads up: ${heads.join('; ')}. Upfit one on the Fleet tab before you launch.</span>`:'';
   $('add').textContent=editIdx===null?'Schedule rotation':'Update rotation';
   $('canceledit').style.display=editIdx===null?'none':'block';
   renderMoveRow();

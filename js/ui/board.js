@@ -117,7 +117,7 @@ function renderSchedule(E){
         ${x.pair?`<span class="seg"><b>${Math.round(x.pair)}</b> spoke-to-spoke</span>`:''}
         ${x.d>3?`<span class="seg" style="color:var(--red)">runs +${x.d}m late</span>`:''}</div>`;
     }else{
-      const blocking=scheduleViolations(rots,owned,gatesOwned).length>0;
+      const blocking=scheduleViolations(rots,owned,gatesOwned,gateTiers).length>0;
       const isNew = !launched && lastE && lastE.perFlt;
       detail=`<div class="fldet" style="color:var(--ink3)">Flight <b>${x.flt}</b> · ${x.from}→${x.to}${x.via&&x.via!==x.to?' via '+x.via:''} · departs ${fmt(x.depShown)}, arrives ${fmt(x.arrShown)}.<br>`
         + (blocking
