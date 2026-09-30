@@ -14,7 +14,10 @@ const typeCount=f=>new Set(f.map(x=>x.t)).size;
 const minTurnHub=f=>{const n=typeCount(f.filter(x=>!x.visit));return n<=1?25:n===2?32:40;};   // visiting aircraft don't count
 /* points economy. Gross rewards traffic; upkeep is the counterweight that keeps
    the fleet from growing without limit. This is operating cost in points, not dollars. */
-const grossPts=pm=>Math.max(0,Math.min(200,Math.round(pm/60000)));  // takes netPm now
+/* traffic points from net pax-miles: 1 per 60,000 up to 12 million (200 pts), then 1 per 120,000 beyond.
+   (Until v3.11 earnings stopped dead at 200 — big airlines earned nothing for growing.) */
+const PTS_KNEE=12e6;
+const grossPts=pm=>{pm=Math.max(0,pm); return Math.round(pm<=PTS_KNEE?pm/60000:200+(pm-PTS_KNEE)/120000);};
 const upkeepPts=(fleet,gates,tiers)=>Math.round(0.12*fleetCost(fleet))+gates+(tiers?tiers.H+2*tiers.I:0);   // heavy gate 2/yr, international 3/yr
 /* upfit cost from one tier mix to another (upgrades only): every gate that becomes heavy-capable
    pays GATE_UP_H, every gate that becomes international pays GATE_UP_I on top */
