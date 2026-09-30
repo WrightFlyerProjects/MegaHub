@@ -117,19 +117,35 @@ function preview(){
   const sh=shape({dst,via,dep,turn,pad},ac,HC), m=sh.marks, arr=mod(dep+sh.dur);
   const al=mod((via?m.arrDst:m.arrDst)+tzD(dst,HC)), dl=mod(m.depDst+tzD(dst,HC));
   renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad);
-  const verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
+  let verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC), lineNote='';
+  const needLine=lineNeed(ac,sh);
+  if(needLine){
+    const cands=pairCands(ac);
+    if(!cands.some(x=>x.id===pairPick))pairPick=cands[0]?cands[0].id:null;
+    if(!cands.length)verr=`Runs ${hm(sh.dur)} — longer than a day. It can fly as a 2-day line: buy a second ${ac.t} with an empty schedule and pair them here.`;
+    else{
+      verr=validate(rots,withPair(ac.id,pairPick),gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
+      lineNote=`<span style="color:var(--blue)">Runs ${hm(sh.dur)} — a 2-day line. Pair ${ac.id} with <select id="pairSel" style="width:auto;display:inline-block;padding:1px 4px">${cands.map(x=>`<option${x.id===pairPick?' selected':''}>${x.id}</option>`).join('')}</select> — they swap schedules daily.</span> `;
+    }
+  }
   const heads=[];
   if(!verr&&acTier(ac)&&gateTiers.H+gateTiers.I===0)heads.push(`${ac.t} is a widebody — it needs a heavy gate at ${HUB.c}`);
   if(!verr&&customsIn(via||dst)&&gateTiers.I===0)heads.push(`the return from ${via||dst} arrives from abroad — it needs an international gate`);
-  if(verr)$('err').textContent=verr;
-  else $('err').innerHTML=heads.length?`<span style="color:var(--amber)">Heads up: ${heads.join('; ')}. Upfit one on the Fleet tab before you launch.</span>`:'';
-  $('add').textContent=editIdx===null?'Schedule rotation':'Update rotation';
+  if(verr){if(lineNote)$('err').innerHTML=lineNote+`<span>${verr}</span>`; else $('err').textContent=verr;}
+  else $('err').innerHTML=lineNote+(heads.length?`<span style="color:var(--amber)">Heads up: ${heads.join('; ')}. Upfit one on the Fleet tab before you launch.</span>`:'');
+  $('add').textContent=needLine&&!verr?'Schedule 2-day line':editIdx===null?'Schedule rotation':'Update rotation';
   $('canceledit').style.display=editIdx===null?'none':'block';
   renderMoveRow();
   renderAxes();
 }
 const hhmm=v=>{const [h,m]=v.split(':').map(Number);return mod(h*60+m);};
 const hhmmStr=m=>{m=mod(Math.round(m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};  // 24h for <input type=time>
+/* 2-day lines: a rotation that won't fit in a day can fly as a 2-day line with a second,
+   unscheduled aircraft of the same type — the two swap schedules every day. */
+let pairPick=null;
+const lineNeed=(ac,sh)=>!!ac&&!ac.pair&&sh.dur+minTurnHub(owned)>DAY&&sh.dur+minTurnHub(owned)<=2*DAY;
+const pairCands=ac=>owned.filter(x=>x.t===ac.t&&x.id!==ac.id&&!x.pair&&!rots.some(r=>r.ac===x.id));
+const withPair=(A,B)=>owned.map(x=>x.id===A?{...x,pair:B}:x.id===B?{...x,pair:A}:x);
 function mkRot(acId,dst,via,dep,turn,pad){
   pad=pad||0;
   const ac=owned.find(a=>a.id===acId), sh=shape({dst,via,dep,turn,pad},ac,HC);

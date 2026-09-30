@@ -14,6 +14,8 @@ function tailLoadStats(E){
   (E.perRot||[]).forEach((p,i)=>{const id=idOf[i]; if(!id)return; const o=get(id);
     o.pm+=p.pm; o.pax+=p.local+p.connect+p.pair;});
   const out={};
+  owned.forEach(a=>{if(!isLead(a))return; const x=get(a.id), y=get(a.pair), m={};   // 2-day line: pool, then halve
+    ['pm','pax','rpm','asm','legs','full'].forEach(k=>{m[k]=(x[k]+y[k])/2;}); t[a.id]={...m}; t[a.pair]={...m};});
   Object.entries(t).forEach(([id,o])=>{out[id]={lf:o.asm?o.rpm/o.asm:0, pax:o.pax, rpm:o.rpm, asm:o.asm,
     score:o.pm-EMPTY_W*Math.max(0,o.asm-o.pm), legs:o.legs, full:o.full};});
   return out;
@@ -27,6 +29,9 @@ function tailOps(){
     s.rots++; s.dur+=r.dur;
     shape(r,a,HC).legs.forEach(L=>{const d=nm(A[L.a],A[L.b]); s.blk+=L.t; s.nm+=d; s.legs++;
       s.maxStage=Math.max(s.maxStage,d); if(A[L.a].ocean||A[L.b].ocean)s.ocean=true;});});
+  owned.forEach(a=>{if(!isLead(a))return; const x=o[a.id], y=o[a.pair], m={};         // 2-day line: each tail flies it all every 2 days
+    ['rots','blk','nm','legs','dur'].forEach(k=>{m[k]=(x[k]+y[k])/2;}); m.maxStage=Math.max(x.maxStage,y.maxStage); m.ocean=x.ocean||y.ocean;
+    Object.assign(x,m); Object.assign(y,m);});
   owned.forEach(a=>{const s=o[a.id], w=freeWindows(rots,owned,a.id);
     s.open=s.rots?(w[0]?w[0].len:0):DAY; s.ground=DAY-s.dur;});
   return o;
@@ -34,6 +39,7 @@ function tailOps(){
 
 function fpFlags(r){
   const f=[];
+  if(r.pair)f.push(['2-day line','f-line',`paired with ${r.pair}: the two swap schedules daily`]);
   if(!r.rots)f.push(['idle','f-idle','no rotations scheduled']);
   if(r.lf!=null&&r.rots){
     if(r.legsL&&r.full/r.legsL>=FP_FULL)f.push(['upgauge?','f-up',`${r.full} of ${r.legsL} legs full — demand is being turned away`]);
@@ -64,7 +70,7 @@ function renderFleetPerf(E){
   const sc=stale?' fpst':'';
 
   const rows=owned.map(a=>{const o=ops[a.id], l=L&&L[a.id];
-    return {id:a.id,t:a.t,seats:a.seats,rots:o.rots,blk:o.blk,ground:o.ground,open:o.open,
+    return {id:a.id,t:a.t,seats:a.seats,pair:a.pair,rots:o.rots,blk:o.blk,ground:o.ground,open:o.open,
       stage:o.legs?o.nm/o.legs:null,legs:o.legs,nmSum:o.nm,maxStage:o.maxStage,ocean:o.ocean,
       pax:l?l.pax:null,lf:l?l.lf:null,score:l?l.score:null,rpm:l?l.rpm:0,asm:l?l.asm:0,
       full:l?l.full:null,legsL:l?l.legs:0,fullShare:l&&l.legs?l.full/l.legs:null};});
@@ -97,7 +103,7 @@ function renderFleetPerf(E){
     <tr>${H('id','Tail',1)}${H('t','Type',1)}${H('rots','Rot')}${H('blk','Block h')}${H('ground','Hub gnd')}${H('open','Open')}${H('stage','Stage nm')}${H('pax','Pax')}${H('lf','LF')}${H('fullShare','Full legs')}${H('score','Score')}<th style="text-align:left;padding-left:10px">Flags</th><th></th></tr>`
     +rows.map(r=>{const fl=fpFlags(r);
       const lfc=r.lf==null?'':r.lf<FP_DOWN?'color:var(--red)':'';
-      return `<tr><td><b>${r.id}</b></td><td style="text-align:left;color:var(--ink2)">${r.t}</td><td>${r.rots}</td>
+      return `<tr><td><b>${r.id}</b></td><td style="text-align:left;color:var(--ink2)">${r.t}</td><td>${+r.rots.toFixed(1)}</td>
         <td>${(r.blk/60).toFixed(1)}</td><td>${hm(r.ground)}</td><td>${hm(r.open)}</td><td>${r.stage==null?'—':Math.round(r.stage)}</td>
         <td class="${sc}">${r.pax==null?'—':Math.round(r.pax)}</td>
         <td class="${sc}" style="${lfc}">${r.lf==null?'—':Math.round(r.lf*100)+'%'}</td>

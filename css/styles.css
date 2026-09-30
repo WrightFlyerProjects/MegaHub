@@ -296,3 +296,7 @@ th[data-fsort]{cursor:pointer;user-select:none} th[data-fsort]:hover,th.on{color
 .typelegend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 /* ---------------- v3.5: block padding ---------------- */
 .duo.trio{grid-template-columns:1.2fr 1fr .8fr}
+/* ---------------- v3.7: 2-day lines ---------------- */
+.linegroup{font:600 10px/1 var(--mono);color:var(--blue);letter-spacing:.04em;padding:7px 8px 5px;border-bottom:1px solid var(--rule2);background:rgba(42,108,153,.05)}
+.lane.paired .tag{border-left:3px solid var(--blue);padding-left:5px}
+.f-line{background:rgba(42,108,153,.12);color:var(--blue)}

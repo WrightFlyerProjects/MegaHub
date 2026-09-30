@@ -138,6 +138,7 @@ document.addEventListener('change',e=>{
   if(v!==a.id && owned.some(x=>x.id===v)){alert('That tail number is already in use.');e.target.value=a.id;return;}
   pushUndo('rename tail');
   const old=a.id; a.id=v;
+  owned.forEach(x=>{if(x.pair===old)x.pair=v;});
   rots.forEach(r=>{if(r.ac===old)r.ac=v;});                 // keep rotations attached
   if(editIdx!=null && rots[editIdx] && rots[editIdx].ac===v){/* stays valid */}
   syncAC();renderFleetPanel();render();preview();saveLocal();
@@ -166,6 +167,7 @@ $('tclock').addEventListener('input',()=>{$('tclockOut').textContent=fmt(+$('tcl
 $('dep').addEventListener('input',preview);
 $('turn').addEventListener('input',preview);
 $('padSel').addEventListener('change',preview);
+document.addEventListener('change',e=>{if(e.target.id==='pairSel'){pairPick=e.target.value;preview();}});
 $('depT').addEventListener('input',()=>{const v=$('depT').value;
   if(/^\d{1,2}:\d{2}$/.test(v)){const m=hhmm(v);if(m>=0&&m<DAY){$('dep').value=m;preview();}}});
 $('depT').addEventListener('change',()=>{$('dep').value=hhmm($('depT').value);preview();});
@@ -175,9 +177,13 @@ $('turnN').addEventListener('blur',()=>{const v=Math.max(25,Math.min(720,+$('tur
   $('turn').value=v;$('turnN').value=String(v);preview();});
 $('add').onclick=()=>{
   const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null,pad=+$('padSel').value||0;
-  const err=validate(rots,owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
+  const acObj=owned.find(a=>a.id===acId), shp=acObj&&destSel?shape({dst,via,dep,turn,pad},acObj,HC):null;
+  const pairWith=shp&&lineNeed(acObj,shp)?pairPick:null;
+  if(shp&&lineNeed(acObj,shp)&&!pairWith){$('err').textContent=`This trip needs a second ${acObj.t} with an empty schedule to fly as a 2-day line.`;return;}
+  const err=validate(rots,pairWith?withPair(acId,pairWith):owned,gatesOwned,acId,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC);
   if(err){$('err').textContent=err;return;}
   pushUndo(editIdx===null?'schedule':'edit');
+  if(pairWith){acObj.pair=pairWith; owned.find(a=>a.id===pairWith).pair=acId;}
   const r=mkRot(acId,dst,via,dep,turn,pad);
   if(editIdx===null)rots.push(r); else{rots[editIdx]=r;editIdx=null;}
   launched=false;render();preview();};

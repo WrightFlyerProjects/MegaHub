@@ -14,7 +14,7 @@ function snapshot(){
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     hub:HUB.c, year:year(),
     points, cumPm, results, gatesOwned, gateTiers, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
-    fleet:owned.map(a=>({id:a.id,t:a.t})),
+    fleet:owned.map(a=>a.pair?{id:a.id,t:a.t,pair:a.pair}:{id:a.id,t:a.t}),
     rots:rots.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn,pad:r.pad||0})),
     last:lastE?{year:lastE.year,pm:lastE.pm,pax:lastE.pax,peak:lastE.peak,
       markets:slimMarkets(lastE.markets),local:slimLocal(lastE.local),perFlt:lastE.perFlt||null,
@@ -31,7 +31,9 @@ function restore(s){
   points=s.points|0; cumPm=s.cumPm||0; results=s.results||[];
   gatesOwned=s.gatesOwned|0; acSeq=s.acSeq||801; coachOff=!!s.coachOff; lastAward=s.lastAward||null; committed=s.committed||{}; yearStartSnap=s.yearStartSnap||null;
   owned=[];
-  (s.fleet||[]).forEach(f=>{const c=CATALOG.find(x=>x.t===f.t); if(c)owned.push({id:f.id,...c});});
+  (s.fleet||[]).forEach(f=>{const c=CATALOG.find(x=>x.t===f.t); if(c)owned.push(f.pair?{id:f.id,...c,pair:f.pair}:{id:f.id,...c});});
+  owned.forEach(a=>{if(!a.pair)return; const b=owned.find(x=>x.id===a.pair);           // keep only valid, mutual, same-type pairs
+    if(!b||b.pair!==a.id||b.t!==a.t)delete a.pair;});
   rots=[]; const dropped=[];
   (s.rots||[]).forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac);

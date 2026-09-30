@@ -193,9 +193,9 @@ function renderRoster(){
           }
           return `<div class="rline">
             <input class="tail" value="${a.id}" data-tail="${a.id}" maxlength="6" spellcheck="false">
-            <span class="rst ${flying?'flying':''}">${flying?'in service':'idle'}</span>
-            <button class="repl" data-replopen="${a.id}">${replOpen===a.id?'cancel':'replace'}</button>
-            <button class="sell" data-sell="${a.id}" ${flying?'disabled title="unschedule its flights first"':''}>sell +${val}</button>
+            <span class="rst ${flying||a.pair?'flying':''}">${a.pair?`⇄ ${a.pair}`:flying?'in service':'idle'}</span>
+            <button class="repl" data-replopen="${a.id}" ${a.pair?'disabled title="part of a 2-day line — remove the long trip first"':''}>${replOpen===a.id?'cancel':'replace'}</button>
+            <button class="sell" data-sell="${a.id}" ${flying||a.pair?`disabled title="${a.pair?'part of a 2-day line — remove the long trip first':'unschedule its flights first'}"`:''}>sell +${val}</button>
           </div>`+box;}).join('')
         +`</div>`;}).join('');
 }
@@ -221,7 +221,7 @@ function renderStats(E){
     $('viol').style.display='block';
     $('viol').innerHTML=`<h2 style="border-color:rgba(178,58,58,.3);color:var(--red)">Schedule no longer legal</h2>`
       +(turns.length?`<div class="rowv" style="margin-bottom:6px"><span>${turns.length} rotation${turns.length>1?'s':''} break the ${minTurnHub(owned)}-minute hub turn</span></div>`
-        +`<table>${turns.slice(0,6).map(v=>`<tr><td>${v.ac} → ${v.dst}</td><td>${v.have}m on the ground</td><td style="color:var(--red)">needs ${v.need}m</td></tr>`).join('')}</table>`:'')
+        +`<table>${turns.slice(0,6).map(v=>`<tr><td>${v.ac} → ${v.dst}</td><td>${v.overlap?'overlaps the trip before it':v.have+'m on the ground'}</td><td style="color:var(--red)">needs ${v.need}m</td></tr>`).join('')}</table>`:'')
       +(gate?`<div class="rowv" style="margin-top:6px"><span>Peak gate demand ${gate.peak} exceeds ${gate.gates} leased</span></div>`:'')
       +(tiers.length?`<table style="margin-top:6px">${tiers.slice(0,6).map(v=>`<tr><td style="text-align:left">${v.tier===2
           ?`${v.peak} arrivals from abroad need customs gates`:`${v.peak} aircraft need heavy-capable gates <span style="color:var(--ink3)">(widebodies + customs arrivals)</span>`}</td>

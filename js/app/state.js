@@ -30,6 +30,21 @@ function startGame(){
   owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;gateTiers={H:0,I:0};tierPend={H:0,I:0};tierNotice=null;
   rots=[];launched=false;selCity=null;editIdx=null;results=[];acSeq=801;lastE=null;committed={};
 }
+/* A 2-day line dissolves by itself once it no longer needs to be one: no trip longer than a day
+   left, and each aircraft's own flying fits in its own day again. */
+function dissolvePairs(){
+  const mt=minTurnHub(owned);
+  owned.forEach(a=>{
+    if(!isLead(a))return; const b=owned.find(x=>x.id===a.pair);
+    if(!b||b.t!==a.t){delete a.pair; if(b&&b.pair===a.id)delete b.pair; return;}
+    if(rots.some(r=>(r.ac===a.id||r.ac===b.id)&&r.dur+mt>DAY))return;
+    const solo=owned.map(x=>(x.id===a.id||x.id===b.id)?{...x,pair:undefined}:x);
+    const turn=scheduleViolations(rots,solo,gatesOwned).some(v=>v.kind==='turn'&&(v.ac===a.id||v.ac===b.id));
+    const overlap=[a.id,b.id].some(id=>{const rs=acRots(rots,id);
+      return rs.length>1&&Math.abs(rs.reduce((s,r,i)=>s+r.dur+mod(rs[(i+1)%rs.length].dep-r.arr),0)-DAY)>1;});
+    if(!turn&&!overlap){delete a.pair; delete b.pair;}
+  });
+}
 const pendingList=()=>{const p=[];CATALOG.forEach(c=>{for(let i=0;i<(pending[c.t]||0);i++)p.push({t:c.t});});return p;};
 const tierNext=()=>({H:gateTiers.H+tierPend.H,I:gateTiers.I+tierPend.I});
 const stdFree=()=>gatesOwned+gatesPending-tierNext().H-tierNext().I;   // standard gates left to upfit

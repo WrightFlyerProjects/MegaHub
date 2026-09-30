@@ -22,6 +22,16 @@ function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx,pad,H){
     : `${ac.t} needs ${tmin} min on the ground at ${dst}`;
   if(via&&turn<0) return '';
   const mt=minTurnHub(fleet);
+  if(ac.pair){
+    if(sh.dur+mt>2*DAY)return `Rotation runs ${(sh.dur/60).toFixed(1)}h — too long even for a 2-day line`;
+    cand.b=sh.legs[0].t; cand.dur=sh.dur; cand.arr=mod(dep+sh.dur);
+    const line=lineItems([...rots.filter((_,i)=>i!==skipIdx),cand],acId,ac.pair);
+    for(const o of line){
+      if(o.gap<0)return `That overlaps other flying on the ${acId}–${ac.pair} 2-day line`;
+      if(o.gap<mt)return `${o.next.r.ac} needs ${mt} min on the ground between rotations (has ${Math.round(o.gap)})`;
+    }
+    return null;
+  }
   if(sh.dur+mt>DAY)return `Rotation runs ${(sh.dur/60).toFixed(1)}h — no room to turn at the hub`;
   cand.b=sh.legs[0].t; cand.dur=sh.dur; cand.arr=mod(dep+sh.dur);
   const base=rots.filter((_,i)=>i!==skipIdx);
@@ -65,6 +75,7 @@ function legExpDelay(a,b,pressure){
 function delayMap(rots,fleet,H){
   const mt=minTurnHub(fleet), out={}, press=hubDepPressure(rots);
   fleet.forEach(a=>{
+    if(a.pair){if(isLead(a))lineDelays(rots,a,H,mt,press,out);return;}
     const rs=acRots(rots,a.id); if(!rs.length)return;
     let d=0;
     for(let pass=0;pass<3;pass++){
@@ -93,6 +104,26 @@ function delayMap(rots,fleet,H){
   });
   return out;
 }
+/* the same delay model, walked around a 2-day line (ground slack = the line's own gaps) */
+function lineDelays(rots,a,H,mt,press,out){
+  const it=lineItems(rots,a.id,a.pair), n=it.length; if(!n)return;
+  let d=0;
+  for(let pass=0;pass<3;pass++){
+    for(let k=0;k<n;k++){
+      const o=it[k], r=o.r, gap=it[(k-1+n)%n].gap;
+      if(n>1)d=Math.max(0,d-Math.max(0,gap-mt)); else d=0;
+      const p=press[Math.round(mod(r.dep))%DAY], pad=r.pad||0;
+      d+=legExpDelay(H.c,r.via||r.dst,p); d=Math.max(0,d-pad);
+      if(r.via)d+=legExpDelay(r.via,r.dst,0);
+      const outbound=d;
+      d=Math.max(0,d-Math.max(0,r.turn-turnMin(r.dst,a)));
+      d+=r.via?legExpDelay(r.dst,r.via,0)+legExpDelay(r.via,H.c,0):legExpDelay(r.dst,H.c,0);
+      d=Math.max(0,d-pad);
+      d=Math.min(DELAY_CAP,d);
+      out[o.i]=Math.min(DELAY_CAP,Math.max(outbound,d));
+    }
+  }
+}
 const otpOf=d=>1/(1+d/90);                     // local passengers dislike a late airline
 /* probability a connection actually connects. Slack = minutes beyond the minimum connect time
    after inbound delay. On time at exactly the minimum: 79% (was 21% — the minimum is, by
@@ -104,6 +135,9 @@ const pMake=slack=>1/(1+Math.exp(-(slack+8)/6));
 function scheduleViolations(rots,fleet,gates,tiers){
   const v=[], mt=minTurnHub(fleet);
   fleet.forEach(a=>{
+    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{
+        if(o.gap<mt-0.5)v.push({kind:'turn',ac:o.next.r.ac,idx:o.next.i,need:mt,have:Math.max(0,Math.round(o.gap)),overlap:o.gap<0,dst:o.next.r.dst});});
+      return;}
     const rs=acRots(rots,a.id); if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
       const arr=rs[i].arr, nxt=rs[(i+1)%rs.length].dep;
@@ -123,6 +157,7 @@ function repairSchedule(rots,fleet,gates,tiers){
   const out=rots.map(r=>({...r}));
   for(let pass=0;pass<3;pass++){
     fleet.forEach(a=>{
+      if(a.pair)return;                                  // 2-day lines are never auto-shifted
       const rs=out.filter(r=>r.ac===a.id).sort((x,y)=>x.dep-y.dep);
       if(rs.length<1)return;
       for(let i=0;i<rs.length-1;i++){
@@ -136,6 +171,14 @@ function repairSchedule(rots,fleet,gates,tiers){
 }
 /* when is this aircraft actually free? windows a new rotation could start in */
 function freeWindows(rots,fleet,acId){
+  const me=fleet.find(a=>a.id===acId);
+  if(me&&me.pair){
+    const mt=minTurnHub(fleet), it=lineItems(rots,acId,me.pair), w=[];
+    if(!it.length)return [{start:0,len:DAY,full:true}];
+    it.forEach(o=>{const s=o.arr+mt, e=o.arr+o.gap-mt; if(e-s<1)return;
+      [0,2*DAY].forEach(k=>{const lo=Math.max(s,k), hi=Math.min(e,k+DAY); if(hi>lo)w.push({start:mod(lo),len:e-lo,after:o.r.dst});});});
+    return w.sort((a,b)=>b.len-a.len);
+  }
   const mt=minTurnHub(fleet), rs=acRots(rots,acId);
   if(!rs.length)return [{start:0,len:DAY,full:true}];
   const w=[];

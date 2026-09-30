@@ -1,18 +1,9 @@
 /* MegaHub · js/ui/board.js — rotation lanes, scheduled list, gate conflicts, master render(), city card, hub card */
 /* ---------------- board ---------------- */
-function renderLanes(E){
-  const DL=delayMap(rots,owned,HC);
-  // #4 group the board by aircraft type: like aircraft sit together, in catalog order
-  const order=CATALOG.map(c=>c.t);
-  const lanes=owned.slice().sort((a,b)=>(order.indexOf(a.t)-order.indexOf(b.t))||(a.id<b.id?-1:1));
-  let curType=null;
-  $('lanes').innerHTML=lanes.map(a=>{
-    const rs=rots.map((r,i)=>({r,i})).filter(o=>o.r.ac===a.id);
-    const dmax=rs.length?Math.max(...rs.map(o=>DL[o.i]||0)):0;
-    // each rotation wrapped so a click loads it into the editor (#6)
-    const blocks=rs.map(({r,i})=>{
-      const sh=shape(r,a,HC), m=sh.marks, ron=r.turn>240;
-      let inner;
+/* the out-turn-return segments of one rotation, drawn through segFn (seg for a normal lane) */
+function rotBlocks(r,a,segFn){
+  const sh=shape(r,a,HC), m=sh.marks, ron=r.turn>240, seg=segFn;
+  let inner;
       if(!r.via){
         const al=mod(m.arrDst+tzD(r.dst,HC)), dl=mod(m.depDst+tzD(r.dst,HC));
         inner=seg(m.depHub,sh.legs[0].t,'out '+qcls(pref(al)),r.dst,`${a.id} ${HUB.c}→${r.dst} · dep ${fmt(m.depHub)} ${HUB.c} · arr ${fmt(al)} ${r.dst} (${Math.round(pref(al)*100)}%)`)
@@ -28,6 +19,35 @@ function renderLanes(E){
           +seg(m.arrVia2,VIA_TURN,'turn','',`${VIA_TURN}m stop at ${r.via}`)
           +seg(m.depVia2,sh.legs[3].t,'ret',HUB.c,`${a.id} ${r.via}→${HUB.c} · arr ${fmt(m.arrHub)} ${HUB.c}`);
       }
+  return inner;
+}
+function renderLanes(E){
+  const DL=delayMap(rots,owned,HC);
+  // #4 group the board by aircraft type: like aircraft sit together, in catalog order
+  const order=CATALOG.map(c=>c.t);
+  const sorted=owned.slice().sort((a,b)=>(order.indexOf(a.t)-order.indexOf(b.t))||(a.id<b.id?-1:1));
+  const lanes=[], seen=new Set();
+  sorted.forEach(a=>{if(seen.has(a.id))return; lanes.push(a); seen.add(a.id);
+    if(a.pair){const p=owned.find(x=>x.id===a.pair); if(p&&!seen.has(p.id)){lanes.push(p); seen.add(p.id);}}});
+  /* 2-day lines: both lanes of a pair are drawn together. A trip that runs past midnight continues
+     on the partner's lane — the partner is doing, today, what this aircraft does tomorrow. */
+  const lineBuf={};
+  lanes.forEach(a=>{if(!isLead(a))return; const P=a.pair; lineBuf[a.id]=''; lineBuf[P]='';
+    rots.forEach((r,i)=>{if(r.ac!==a.id&&r.ac!==P)return;
+      const off=r.ac===a.id?0:DAY, buf={[a.id]:'',[P]:''};
+      const segL=(s0,len,cls,lab,title)=>{let t=s0+off, rem=len;
+        while(rem>0.01){const d=Math.floor(t/DAY), w=t-d*DAY, take=Math.min(rem,DAY-w), ln=d%2===0?a.id:P;
+          buf[ln]+=`<div class="blk ${cls}" style="left:${X(w)}%;width:${X(take)}%" title="${title||''}">${lab||''}</div>`; t+=take; rem-=take;}
+        return '';};
+      rotBlocks(r,owned.find(x=>x.id===r.ac),segL);
+      [a.id,P].forEach(ln=>{if(buf[ln])lineBuf[ln]+=`<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${r.ac} → ${r.dst}">${buf[ln]}</div>`;});});});
+  let curType=null;
+  $('lanes').innerHTML=lanes.map(a=>{
+    const rs=rots.map((r,i)=>({r,i})).filter(o=>o.r.ac===a.id);
+    const dmax=rs.length?Math.max(...rs.map(o=>DL[o.i]||0)):0;
+    // each rotation wrapped so a click loads it into the editor (#6)
+    const blocks=a.pair?(lineBuf[a.id]||''):rs.map(({r,i})=>{
+      const inner=rotBlocks(r,a,seg);
       return `<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${a.id} → ${r.dst}">${inner}</div>`;
     }).join('');
     let bands='';
@@ -35,11 +55,12 @@ function renderLanes(E){
       freeWindows(rots,owned,a.id).forEach(w=>{
         const s=mod(w.start), l=Math.min(w.len,DAY-s);
         bands+=`<div class="free" style="left:${X(s)}%;width:${X(l)}%" ></div>`;
-        if(w.len>l)bands+=`<div class="free" style="left:0;width:${X(w.len-l)}%"></div>`;});
+        if(w.len>l&&!a.pair)bands+=`<div class="free" style="left:0;width:${X(w.len-l)}%"></div>`;});
     }
     // a light type divider when the group changes
-    const head = a.t!==curType ? (curType=a.t, `<div class="lanegroup">${a.t}</div>`) : '';
-    return head+`<div class="lane"><div class="tag"><b>${a.id}</b><i>${a.t}${dmax>3?` <span class="dly ${dmax>30?'bad':''}">+${Math.round(dmax)}m</span>`:''}</i></div>
+    const head=(a.t!==curType?(curType=a.t,`<div class="lanegroup">${a.t}</div>`):'')
+      +(isLead(a)?`<div class="linegroup">⇄ 2-day line · ${a.id} and ${a.pair} swap schedules every day</div>`:'');
+    return head+`<div class="lane${a.pair?' paired':''}"><div class="tag"><b>${a.id}</b><i>${a.pair?`⇄ ${a.pair}`:a.t}${dmax>3?` <span class="dly ${dmax>30?'bad':''}">+${Math.round(dmax)}m</span>`:''}</i></div>
       <div class="track"><div class="hr"></div>${bands}${blocks}</div></div>`;
   }).join('')||`<div class="empty" style="padding:14px">No aircraft. Buy some.</div>`;
 }
@@ -155,6 +176,7 @@ function gateConflicts(rots,fleet,gates){
 }
 
 function render(){
+  dissolvePairs();
   const E=evaluate(rots,owned,gatesOwned,HC);
   renderStats(E);renderAward();renderAxes();renderLanes(E);syncACLabels();renderUndo();
   const cur=E.cur,w=100/DAY;let bars='';
@@ -181,6 +203,7 @@ renderSchedule(E);
 
   renderMarketsTab(E);
   renderFleetPerf(E);
+  renderRoster();          // status, pairs and sell/replace locks follow the schedule
   renderHubStats(E); renderHistory(); renderSeasons();
   renderCoach();
   renderMap(E); renderTerminal(E);
@@ -193,7 +216,8 @@ renderSchedule(E);
    keeps one number across both legs of its direction. */
 function rotLegs(r,ac){
   const m=shape(r,ac,HC).marks, out=flightNo(HUB.c,r.dst,r.dep,r.via||null,'out'), ret=flightNo(HUB.c,r.dst,r.dep,r.via||null,'ret');
-  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,HC)),arr:mod(arr+tzD(b,HC)),ac:r.ac,t:ac.t});
+  const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;        // 2-day line: whoever is on this part of the cycle today
+  const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,HC)),arr:mod(arr+tzD(b,HC)),ac:tailAt(dep),t:ac.t});
   return r.via
     ?[L(out,HUB.c,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,HUB.c,m.depVia2,m.arrHub)]
     :[L(out,HUB.c,r.dst,m.depHub,m.arrDst),L(ret,r.dst,HUB.c,m.depDst,m.arrHub)];

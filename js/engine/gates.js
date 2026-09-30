@@ -2,9 +2,32 @@
 /* --- gates: on the ground at the hub = a gate held ---------------------- */
 function addArc(cur,s,len){s=Math.round(mod(s));len=Math.round(len);for(let i=0;i<len;i++)cur[(s+i)%DAY]++;}
 const acRots=(rots,id)=>rots.filter(r=>r.ac===id).sort((a,b)=>a.dep-b.dep);
+
+/* ---------------- 2-day lines ----------------
+   Two aircraft of the same type can be paired (a.pair = partner's id). They swap schedules every
+   day: today the partner flies what this aircraft flew yesterday. Their shared cycle is 48 hours —
+   A's rotations (day 1), then B's (day 2) — so a rotation longer than a day simply carries on into
+   the partner's day. Every rotation still operates once daily, flown by one tail or the other, so
+   everything built on the daily schedule (demand, banks, gates, scoring) is unchanged. Unpaired
+   aircraft never touch this code. */
+const isLead=a=>!!a.pair&&a.id<a.pair;                // each pair is walked once, through its lead
+/* the pair's cycle in time order: {r, i (index in rots), dep/arr (absolute minutes over 48h), gap to next, next} */
+function lineItems(rots,A,B){
+  const it=[];
+  rots.forEach((r,i)=>{if(r.ac===A)it.push({r,i,dep:r.dep});else if(r.ac===B)it.push({r,i,dep:r.dep+DAY});});
+  it.sort((x,y)=>x.dep-y.dep);
+  const L=2*DAY,n=it.length;
+  it.forEach(o=>o.arr=o.dep+o.r.dur);
+  it.forEach((o,k)=>{const nx=it[(k+1)%n]; o.next=nx; o.gap=(k+1<n?nx.dep:nx.dep+L)-o.arr;});
+  return it;
+}
+/* which tail of the pair is doing the part of the cycle at absolute time t (minutes into the 48h line) */
+const dayTail=(t,A,B)=>(((t%(2*DAY))+2*DAY)%(2*DAY))<DAY?A:B;
 function gateCurve(rots,fleet){
   const cur=new Array(DAY).fill(0);
-  fleet.forEach(a=>{const rs=acRots(rots,a.id);if(!rs.length)return;
+  fleet.forEach(a=>{
+    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap>0)addArc(cur,o.arr,o.gap);});return;}
+    const rs=acRots(rots,a.id);if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
       const arr=rs[i].arr,nxt=rs[(i+1)%rs.length].dep;
       let gap=rs.length===1?DAY-rs[i].dur:mod(nxt-arr);
@@ -16,7 +39,13 @@ function gateCurve(rots,fleet){
 /* ground intervals at the hub: [aircraft, start, length] on the circular day */
 function groundIntervals(rots,fleet){
   const iv=[];
-  fleet.forEach(a=>{const rs=acRots(rots,a.id);if(!rs.length)return;
+  fleet.forEach(a=>{
+    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap<=0)return;
+        const tail=dayTail(o.arr,a.id,a.pair);
+        iv.push({ac:tail,acAfter:tail===a.id?a.pair:a.id,type:a.t,start:Math.round(mod(o.arr)),len:Math.round(o.gap),
+                 from:o.r.dst,to:o.next.r.dst,last:o.r.via||o.r.dst});});
+      return;}
+    const rs=acRots(rots,a.id);if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
       const arr=rs[i].arr,nxt=rs[(i+1)%rs.length].dep;
       let gap=rs.length===1?DAY-rs[i].dur:mod(nxt-arr);
@@ -143,7 +172,8 @@ function gateAssignTiered(rots,fleet,gates,tiers){
     o.pieces.forEach((p,j)=>{const pe=j+1<o.pieces.length?o.pieces[j+1].from:o.end;
       const f=Math.max(p.from,W0), e=Math.min(pe,W1); if(e<=f)return;
       if(p.gate<0){out.push({...base,start:Math.round(f-W0),len:Math.round(e-f),gate:-1,gtier:-1});return;}
-      out.push({...base,start:Math.round(f-W0),len:Math.round(e-f),gate:p.gate,gtier:gt[p.gate],
+      const who=(f>p.from&&o.iv.acAfter&&f===W0)?{ac:o.iv.acAfter}:{};     // after midnight, a paired stay is the partner's
+      out.push({...base,...who,start:Math.round(f-W0),len:Math.round(e-f),gate:p.gate,gtier:gt[p.gate],
         tow:p.tow&&p.from>=W0,borrowed:gt[p.gate]>o.maxNeed});});
   });
   return out.sort((a,b)=>a.gate-b.gate||a.start-b.start);
