@@ -20,7 +20,7 @@ function snapshot(){
   return {v:SAVE_VERSION, ts:Date.now(),
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     year:year(), points, cumPm, results, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
-    view:HC.c,
+    view:HC.c, pointsLog,
     hubs:hubOrder.map(c=>{const h=hubStore[c]; return {c,band:h.band||0,gates:h.gates,tiers:h.tiers,
       fleet:slimFleet(h.fleet),rots:slimRots(h.rots),last:slimLast(lastHubs[c])};})};
 }
@@ -46,12 +46,27 @@ function restoreHub(h){
   else{const c=gateTierCurves(rots,owned), I=Math.min(gatesOwned,Math.max(0,...c.i)),
       H=Math.min(gatesOwned-I,Math.max(0,Math.max(0,...c.h)-I));
     gateTiers={H,I};
-    tierNotice=(H||I)?`Gate tiers are new: widebodies need heavy gates and arrivals from abroad need international (customs) gates. To keep your schedule legal, ${I} of your gates were upgraded to international and ${H} to heavy, free.`:null;}
+    if(H||I)tierNotice=(tierNotice?tierNotice+' ':'')+`Gate tiers are new: widebodies need heavy gates and arrivals from abroad need international (customs) gates. To keep your schedule legal, ${I} of your gates were upgraded to international and ${H} to heavy, free.`;}
   lastE=h.last||null;
   stashView();
   return dropped;
 }
 
+/* Saves from before v3.13 can hold the same tail number twice (auto-numbering collided with
+   hand-renamed tails). Every later copy gets a fresh number. A copy in another hub takes its own
+   hub's rotations with it; a second copy within one hub was never flying (the schedule always
+   resolved to the first), so it comes back idle. */
+function dedupeTails(list){
+  const used=new Set(list.flatMap(h=>(h.fleet||[]).map(f=>f.id))), first={}, msgs=[];
+  list.forEach(h=>{(h.fleet||[]).forEach(f=>{
+    if(!(f.id in first)){first[f.id]=h.c; return;}
+    const old=f.id, nu=nextTail(used); f.id=nu; delete f.pair;
+    if(first[old]!==h.c){(h.rots||[]).forEach(r=>{if(r.ac===old)r.ac=nu;}); msgs.push(`${old} at ${h.c} → ${nu}`);}
+    else msgs.push(`${old} (second ${f.t} at ${h.c}) → ${nu}, now idle`);
+  });});
+  if(msgs.length)tierNotice=(tierNotice?tierNotice+' ':'')+`Duplicate tail numbers were found and renumbered: ${msgs.join('; ')}. Tail numbers are now assigned automatically and are always unique.`;
+  return list;
+}
 function restore(s){
   if(!s||typeof s!=='object')throw new Error('Not a MegaHub save');
   if(s.v!==1&&s.v!==2)throw new Error(`Save is version ${s.v}, this game reads versions 1 and ${SAVE_VERSION}`);
@@ -59,8 +74,9 @@ function restore(s){
   airline={name:s.airline?.name||'MegaHub Airways',c1:s.airline?.c1||'#2A6C99',c2:s.airline?.c2||'#16283C'};
   points=s.points|0; cumPm=s.cumPm||0; results=s.results||[];
   acSeq=s.acSeq||801; coachOff=!!s.coachOff; lastAward=s.lastAward||null; committed=s.committed||{}; yearStartSnap=s.yearStartSnap||null;
+  pointsLog=Array.isArray(s.pointsLog)?s.pointsLog.slice(-80):[]; tierNotice=null;
   // v1 saves are a one-hub airline
-  const list=s.hubs||[{c:s.hub,band:0,gates:s.gatesOwned,tiers:s.gateTiers,fleet:s.fleet,rots:s.rots,last:s.last}];
+  const list=dedupeTails(JSON.parse(JSON.stringify(s.hubs||[{c:s.hub,band:0,gates:s.gatesOwned,tiers:s.gateTiers,fleet:s.fleet,rots:s.rots,last:s.last}])));
   hubOrder=[]; hubStore={}; lastHubs={}; HC=null;
   const dropped=[];
   list.forEach(h=>{hubOrder.push(h.c); restoreHub(h).forEach(d=>dropped.push(d));});

@@ -120,7 +120,7 @@ function doReplace(id,newType){
   // rebuild this aircraft's rotations so block time, duration and arrival reflect the
   // new type's speed (otherwise the schedule keeps the old aircraft's timing)
   rots.forEach((r,i)=>{ if(r.ac===id) rots[i]=mkRot(id,r.dst,r.via||null,r.dep,r.turn,r.pad||0); });
-  points-=net;
+  points-=net; logPts(`replaced ${id} (${old.t} → ${newType})`,-net);
   launched=false;                                    // fleet changed -> re-launch
   replOpen=null;
   syncAC();renderHub();renderFleetPanel();render();preview();saveLocal();
@@ -172,7 +172,7 @@ function renderRoster(){
   owned.forEach(a=>{(byType[a.t]=byType[a.t]||[]).push(a);});
   const types=Object.keys(byType).sort((x,y)=>order.indexOf(x)-order.indexOf(y));
   host.innerHTML='<div style="border-top:1px solid var(--rule);margin:12px 0 2px"></div>'
-    +'<div class="rgh" style="border:none;margin-bottom:2px"><span>Your fleet</span><em>rename · replace · sell</em></div>'
+    +'<div class="rgh" style="border:none;margin-bottom:2px"><span>Your fleet</span><em>replace · sell · move</em></div>'
     +types.map(t=>{
       const list=byType[t], c=CATALOG.find(x=>x.t===t), val=tradeInValue(t);
       return `<div class="rgroup"><div class="rgh"><span>${t} <em>× ${list.length}</em></span><em>sell → +${val}pt</em></div>`
@@ -192,7 +192,7 @@ function renderRoster(){
             box=`<div class="replbox"><div class="rh">Replace ${a.id} — pick a new aircraft (schedule transfers)</div>${rows||'<div class="replnote">No other types available this year.</div>'}<div class="replnote">You pay the new price and recoup ${val}pt for the old ${t}.</div></div>`;
           }
           return `<div class="rline">
-            <input class="tail" value="${a.id}" data-tail="${a.id}" maxlength="6" spellcheck="false">
+            <input class="tail" value="${a.id}" data-tail="${a.id}" readonly tabindex="-1" title="tail numbers are assigned automatically">
             <span class="rst ${flying||a.pair?'flying':''}">${a.pair?`⇄ ${a.pair}`:flying?'in service':'idle'}</span>
             <button class="repl" data-replopen="${a.id}" ${a.pair?'disabled title="part of a 2-day line — remove the long trip first"':''}>${replOpen===a.id?'cancel':'replace'}</button>
             <button class="sell" data-sell="${a.id}" ${flying||a.pair?`disabled title="${a.pair?'part of a 2-day line — remove the long trip first':'unschedule its flights first'}"`:''}>sell +${val}</button>${hubOrder.length>1&&!flying&&!a.pair?`

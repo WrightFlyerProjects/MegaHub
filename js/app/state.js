@@ -50,6 +50,11 @@ const netList=hs=>hs.map(h=>({H:h.H,rots:h.rots,fleet:h.fleet}));
 const vFleetOf=(c,hs)=>{hs=hs||netHubs(); const h=hs.find(x=>x.c===c); return h.fleet.concat(visitsAt(netList(hs),c));};
 const vFleet=()=>{if(hubOrder.length<2)return owned; return vFleetOf(HC.c);};
 const allTails=()=>allHubs().flatMap(h=>h.fleet.map(a=>a.id));
+/* tail numbers are assigned by the game and unique across the whole airline (v3.13) */
+function nextTail(used){used=used||new Set(allTails()); let id; do{id='N'+(acSeq++);}while(used.has(id)); used.add(id); return id;}
+/* points log: every change to the points balance, newest last (v3.13) */
+let pointsLog=[];
+function logPts(what,amt){if(!amt)return; pointsLog.push({y:YEAR,what,amt:Math.round(amt),bal:points}); if(pointsLog.length>80)pointsLog.shift();}
 const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers),0);
 /* one evaluation of the whole airline (hubs share connecting demand), cached until anything changes */
 let _airE=null,_airSig='';
@@ -89,7 +94,7 @@ const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','S
 
 function startGame(){
   setYear(YEAR_MIN); hubOrder=['DFW']; hubStore={}; lastHubs={}; setHub('DFW');
-  owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;gateTiers={H:0,I:0};tierPend={H:0,I:0};tierNotice=null;
+  owned=[];pending={};gatesOwned=0;gatesPending=0;points=START_BUDGET;cumPm=0;pointsLog=[];gateTiers={H:0,I:0};tierPend={H:0,I:0};tierNotice=null;
   rots=[];launched=false;selCity=null;editIdx=null;results=[];acSeq=801;lastE=null;committed={};
 }
 /* A 2-day line dissolves by itself once it no longer needs to be one: no trip longer than a day

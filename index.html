@@ -184,6 +184,13 @@
     <select id="mktSel" aria-label="Choose a city to explore"></select>
     <div id="mexp"></div>
   </div>
+  <div class="panel" id="ttPanel" style="margin-top:22px">
+    <h2>Timetable <em id="ttlab"></em></h2>
+    <div class="ttctl"><select id="ttSel" aria-label="City timetable"></select>
+      <input type="text" id="ttFind" placeholder="find a city…" autocomplete="off" spellcheck="false"></div>
+    <div id="ttbody"></div>
+  </div>
+  <div class="tiernote" id="connwhy" style="display:none;margin-top:18px"></div>
   <h2 style="margin-top:26px">Opportunities <em id="opplab"></em></h2>
   <div class="cols3">
     <div><h3 class="sub3">Biggest unserved cities</h3><div id="oppUnserved"></div></div>
@@ -224,6 +231,8 @@
   </div>
   <h2 style="margin-top:28px">Season by season <em id="seasonlab"></em></h2>
   <div id="seasons"></div>
+  <h2 style="margin-top:28px">Points log <em id="ptslab"></em></h2>
+  <div id="ptslog"></div>
   <h2 style="margin-top:28px">How MegaHub works</h2>
   <div class="foot">
   One round per year, 1988 to 2015 (schedule data runs to 2005; demand holds steady after that). Each launch pays traffic points — one per 60,000 net pax-miles up to 12 million, then one per 120,000 beyond — and charges fleet and gate upkeep; the net funds next year's growth.
@@ -271,6 +280,7 @@
 <script src="js/ui/hubstats.js"></script>
 <script src="js/ui/history.js"></script>
 <script src="js/ui/hubs.js"></script>
+<script src="js/ui/timetable.js"></script>
 <script src="js/ui/tabs.js"></script>
 <script src="js/ui/events.js"></script>
 <script src="js/main.js"></script>

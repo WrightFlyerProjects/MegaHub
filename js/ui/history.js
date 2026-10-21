@@ -49,3 +49,14 @@ function renderSeasons(){
         <td>${v(r.fleet,x=>x)}</td><td>${v(r.gates,x=>x)}</td><td>${v(r.rots,x=>x)}</td></tr>`;}).join('')
     +`</table></div><div class="note">Seasons flown before this update recorded only net pax-miles; the other columns fill in from your next launch.</div>`;
 }
+
+/* every change to the points balance, newest first (v3.13) */
+function renderPointsLog(){
+  const host=$('ptslog'); if(!host)return;
+  $('ptslab').textContent=pointsLog.length?`last ${pointsLog.length} changes · balance ${points}`:'';
+  if(!pointsLog.length){host.innerHTML='<div class="empty">Every purchase, sale and launch will be listed here, with the balance after it.</div>';return;}
+  host.innerHTML=`<div class="tscroll" style="max-height:340px;overflow-y:auto"><table class="fptab"><tr><th>Year</th><th style="text-align:left">What</th><th>Points</th><th>Balance</th></tr>`
+    +pointsLog.slice().reverse().map(e=>`<tr><td>${e.y}</td><td style="text-align:left;white-space:normal">${e.what}</td>
+      <td style="color:${e.amt>=0?'var(--green)':'var(--red)'}">${e.amt>=0?'+':''}${e.amt}</td><td>${e.bal}</td></tr>`).join('')
+    +`</table></div><div class="note">Logged from v3.13 on; earlier seasons' purchases weren't recorded.</div>`;
+}

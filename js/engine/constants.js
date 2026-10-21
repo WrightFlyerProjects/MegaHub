@@ -1,5 +1,6 @@
 /* MegaHub · js/engine/constants.js — tuning constants: day length, MCT, load factor, delay model, turn minimums, block-time allowances */
 /* MegaHub engine v2.0 — retuned demand, flight numbers, start year, extended timeline, sell aircraft, more intl. No DOM. */
+const CONN_FLOOR=0.10;   // share of a city pair's demand that connects even when competitors fly it nonstop
 const DAY=1440, MCT_BASE=30, MAXCT=300, LF=0.72, TAXI=18, ALPHA=1.5, HALF_CONN=1.6, HALF_PAIR=2.0;
 const GATE_COST=8, MIN_GATES=1, MAX_GATES=30, VIA_TURN=40, THRU_TAX=0.85, MIN_STAGE=75;
 /* delay model */

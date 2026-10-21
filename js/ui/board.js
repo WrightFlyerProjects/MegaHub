@@ -218,11 +218,11 @@ function render(){
 
 renderSchedule(E);
 
-  renderMarketsTab(E);
+  renderMarketsTab(E); renderTimetable();
   renderFleetPerf(E);
   renderRoster();          // status, pairs and sell/replace locks follow the schedule
   renderHubSwitch(); renderHubsPanel();
-  renderHubStats(E); renderHistory(); renderSeasons();
+  renderHubStats(E); renderHistory(); renderSeasons(); renderPointsLog();
   renderCoach();
   renderMap(E); renderTerminal(E);
   saveLocal();
@@ -273,7 +273,7 @@ function renderCity(c,E){
   const fl=E.flows[c]||{out:0,in:0}, mk=E.markets.filter(m=>m.i===c||m.j===c).slice(0,8);
   $('city').innerHTML=`<div class="cityhead">
       <div><b>${c} — ${s.n}</b><br><i>${Math.round(dHub[c])} nm from ${HUB.c} · local ${tzD(c,HC)>=0?'+':''}${tzD(c,HC)/60}h · two-way hub market ${2*hubOD(c)} pax/day · expects ${halfLocal(c,HC).toFixed(1)}× daily</i></div>
-      <div><span class="x" data-explore="${c}" style="margin-right:14px">explore market →</span><span class="x" id="cityclose">✕ close</span></div></div>
+      <div><span class="x" data-tt="${c}" style="margin-right:14px">timetable →</span><span class="x" data-explore="${c}" style="margin-right:14px">explore market →</span><span class="x" id="cityclose">✕ close</span></div></div>
     <div class="cols" style="margin-top:0">
       <div><h2>Arrivals <em>local times</em></h2>${arr.length?`<table class="fptab"><tr><th>Flight</th><th style="text-align:left">From</th><th>Departs</th><th>Arrives</th><th style="text-align:left;padding-left:18px">Aircraft</th></tr>`+
         arr.map(o=>`<tr class="clik" data-city="${o.a}"><td><span class="fltno">${o.flt}</span></td><td style="text-align:left">${o.a}</td><td>${fmt(o.dep)}</td><td>${fmt(o.arr)}</td>

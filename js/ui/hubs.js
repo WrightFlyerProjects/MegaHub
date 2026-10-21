@@ -33,7 +33,7 @@ function renderHubsPanel(){
     ${avail.length&&hubOrder.length<10?`<details class="openhub" id="openHubBox"${newHubOpen?' open':''}>
       <summary>Open a new hub</summary>
       <select id="newHubSel">${avail.map(c=>`<option value="${c}"${c===newHubPick?' selected':''}>${c} — ${A[c].n}</option>`).join('')}</select>
-      <div class="openrow"><span>Gates</span><span class="stepper"><span data-nhm="1">−</span><span class="n">${g}</span><span data-nhp="1">+</span></span>
+      <div class="hubopenrow"><span>Gates</span><span class="stepper"><span data-nhm="1">−</span><span class="n">${g}</span><span data-nhp="1">+</span></span>
         <button id="openHub" ${cost>points?'disabled':''}>Open ${newHubPick||''} · ${cost} pts</button></div>
       ${preNote}<div class="note">${HUB_FEE} pts to open plus ${GATE_COST} per gate${cost>points?` · you have ${points}`:''}. Each hub runs its own schedule; connecting passengers between two cities are shared, so hubs compete for them. Aircraft are bought at the hub you're viewing, and idle ones can move between hubs from the roster.</div>
     </details>`:''}`;
@@ -46,7 +46,7 @@ function openHub(code,g){
   stashView();
   const used=new Set(hubOrder.map(c=>hubStore[c].band||0)); let band=1; while(used.has(band))band++;
   hubStore[code]={gates:g,tiers:{H:0,I:0},fleet:[],rots:[],band}; lastHubs[code]=null;
-  hubOrder.push(code); points-=cost;
+  hubOrder.push(code); points-=cost; logPts(`opened ${code} hub with ${g} gates`,-cost);
   viewHub(code); afterHubChange();
 }
 function closeHub(code){
@@ -60,6 +60,7 @@ function closeHub(code){
 /* an idle, unpaired aircraft can be based at another hub */
 function rebase(id,to){
   const a=owned.find(x=>x.id===id); if(!a||a.pair||rots.some(r=>r.ac===id)||!hubStore[to])return;
+  if(hubStore[to].fleet.some(x=>x.id===id)){alert(`${to} already has an aircraft numbered ${id}.`);return;}   // can't happen with unique tails; never lose an aircraft
   pushUndo(`move ${id} to ${to}`);
   owned.splice(owned.indexOf(a),1); hubStore[to].fleet.push(a);
   afterHubChange();

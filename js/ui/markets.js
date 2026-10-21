@@ -156,6 +156,13 @@ function renderMarketsTab(E){
     +`</table><div class="note">Markets with real demand but no connection that fits between ${T.mct}m (+${CUSTOMS}m customs from abroad) and ${hm(MAXCT)}. Retime an arrival or departure to capture them.</div>`
     :`<div class="empty">No sizable market is missing a connection.</div>`;
   $('opplab').textContent=`${served.size} cities served · ${uns.length} in range not served`;
+  /* explain a thin connecting operation instead of leaving it a mystery */
+  const cPax=show?show.markets.reduce((a,m)=>a+m.pax,0):null, aPax=show?show.pax:0;
+  const thin=show&&served.size>=4&&cPax<0.15*aPax;
+  $('connwhy').innerHTML=thin?`<b>Why so few connecting passengers?</b> ${Math.round(cPax).toLocaleString()} of ${Math.round(aPax).toLocaleString()} passengers connect at ${HUB.c}.
+    Between big cities, competitors already fly plenty of nonstops, so only about ${Math.round(CONN_FLOOR*100)}% of those travelers connect.
+    Hubs earn their connecting traffic from smaller cities that lack nonstop service — the <b>Biggest unserved cities</b> list ranks them by what they'd add.`:'';
+  $('connwhy').style.display=thin?'block':'none';
 
   /* ---------- network-wide connecting markets (searchable) + frequency & capture ---------- */
   $('mklab').textContent=stale?`${lastE.year} · last year`:'';

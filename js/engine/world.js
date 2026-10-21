@@ -19,7 +19,9 @@ AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{
   let ns=0;
   if(lo>=5.2&&d>180) ns=Math.round(26*(lo+hi)*(0.6+0.8*hash(key)));
   else if(lo>=3.2&&d>180) ns=Math.round(9*(lo+hi)*hash(key+'x'));
-  spillBase[k]=Math.max(0,Math.round(dem-ns*LF));
+  /* connecting demand = travelers competitors' nonstops don't carry; at least 10% of the market still
+     connects (price, schedule, loyalty) even where nonstops are plentiful (v3.13) */
+  spillBase[k]=Math.max(Math.round(CONN_FLOOR*dem),Math.round(dem-ns*LF));
 }));
 
 /* ---- hub context ----

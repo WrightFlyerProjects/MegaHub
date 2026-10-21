@@ -6,6 +6,7 @@ function showTab(t){
   curTab=t;
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on',p.dataset.pane===t));
   document.querySelectorAll('#tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'));
+  if(t==='markets'&&typeof renderTimetable==='function')renderTimetable(true);
   if(location.hash.slice(1)!==t){try{history.replaceState(null,'','#'+t);}catch(e){}}
 }
 $('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab);});

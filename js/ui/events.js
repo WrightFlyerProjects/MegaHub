@@ -30,7 +30,7 @@ document.addEventListener('click',e=>{
     const val=tradeInValue(a.t);
     if(!confirm(`Sell ${a.id} (${a.t}) back for ${val} points?`))return;
     pushUndo('sell aircraft');
-    owned=owned.filter(x=>x.id!==sell); points+=val;
+    owned.splice(owned.indexOf(a),1); points+=val; logPts(`sold ${a.id} (${a.t})`,val);
     launched=false;               // fleet changed -> the year must be re-launched
     syncAC();renderHub();renderFleetPanel();render();preview();saveLocal();return;
   }
@@ -124,25 +124,14 @@ $('startY').addEventListener('change',()=>{
 $('build').onclick=()=>{
   const cost=spendNow(); if(cost>points||!cost)return;
   pushUndo('purchase');
-  pendingList().forEach(x=>owned.push({id:'N'+(acSeq++),...CATALOG.find(c=>c.t===x.t)}));
-  gatesOwned+=gatesPending; gateTiers=tierNext(); points-=cost; pending={};gatesPending=0;tierPend={H:0,I:0};
+  const used=new Set(allTails()), n=pendingList().length;
+  pendingList().forEach(x=>owned.push({id:nextTail(used),...CATALOG.find(c=>c.t===x.t)}));
+  gatesOwned+=gatesPending; gateTiers=tierNext(); points-=cost;
+  logPts(`bought at ${HC.c}: ${[n?n+' aircraft':'',gatesPending?gatesPending+' gate'+(gatesPending>1?'s':''):'',(tierPend.H||tierPend.I)?'gate upfits':''].filter(Boolean).join(', ')}`,-cost);
+  pending={};gatesPending=0;tierPend={H:0,I:0};
   syncAC();syncDest();renderHub();renderFleetPanel();render();preview();};
 $('ac').addEventListener('input',()=>{syncDest();enforceTurn();snapToFree();preview();});
-document.addEventListener('change',e=>{
-  const t=e.target.getAttribute&&e.target.getAttribute('data-tail');
-  if(t==null)return;
-  let v=(e.target.value||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,6);
-  const a=owned.find(x=>x.id===t);
-  if(!a){return;}
-  if(!v){e.target.value=a.id;return;}                       // empty -> revert
-  if(v!==a.id && allTails().includes(v)){alert('That tail number is already in use.');e.target.value=a.id;return;}
-  pushUndo('rename tail');
-  const old=a.id; a.id=v;
-  owned.forEach(x=>{if(x.pair===old)x.pair=v;});
-  rots.forEach(r=>{if(r.ac===old)r.ac=v;});                 // keep rotations attached
-  if(editIdx!=null && rots[editIdx] && rots[editIdx].ac===v){/* stays valid */}
-  syncAC();renderFleetPanel();render();preview();saveLocal();
-});
+/* tail numbers are assigned by the game (v3.13): no renaming */
 ['dest','via'].forEach(w=>{
   const q=$(w==='via'?'viaQ':'destQ');
   q.addEventListener('focus',()=>{q.select();renderCombo(w);openCombo(w,true);});
@@ -225,14 +214,16 @@ $('launch').onclick=()=>{
   const seasonRec={y:e.year,pm:score,lf:T.lf,otp:T.otp,pax:T.pax,fleet:nFleet,gates:nGates,rots:T.rots,dm:2};   // dm: delay model version
   if(hubOrder.length>1)seasonRec.hubs=hubOrder.map(c=>({c,pm:AE.byHub[c].netPm}));
   const prior=committed[e.year];
+  const before=points;
   if(prior){ cumPm+=score-prior.score; points=points-prior.net+net;
     const ix=results.findIndex(r=>r.y===e.year); if(ix>=0)results[ix]=seasonRec; }
   else { cumPm+=score; points=Math.max(0,points+net); results.push(seasonRec); }
   committed[e.year]={score,net};
   points=Math.max(0,points);
+  logPts(prior?`${e.year} re-launched (net ${net>=0?'+':''}${net}, replacing ${prior.net>=0?'+':''}${prior.net})`:`${e.year} flown: +${gross} traffic − ${up} upkeep`,points-before);
   lastAward={year:e.year,pm:T.pm,netPm:T.netPm,lf:T.lf,gross,up,net};
   if(hubOrder.length>1)lastAward.hubs=hubOrder.map(c=>({c,netPm:AE.byHub[c].netPm,pax:AE.byHub[c].pax}));
-  render();                                   // reveals the year just flown; calendar advances on Continue
+  render(); renderFleetPanel();               // reveals the year just flown (and the new budget); calendar advances on Continue
   saveLocal();
 };
 
