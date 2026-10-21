@@ -46,6 +46,29 @@ function ttFrom(O,ix){
       if(1/(1+Math.pow(Math.max(0,r-1)/tol,2))<0.2)return;                                // too roundabout to sell
       add(D,{dep:s.dep,el:s.el+ct+t.el,segs:[s,t],via:H});});
   });
+  /* double connections (v3.14): O → hub A → trunk → hub B → D, the same strict rules the passenger
+     model uses: no airport twice, each connection in its hub's window, not too roundabout, and only
+     where nothing simpler leaves within DBL_GAP of it */
+  if(!ix.hubs[O]&&hubOrder.length>1){
+    const simple={}; Object.entries(res).forEach(([D,L])=>simple[D]=L.map(it=>it.dep));
+    const near=(D,t)=>(simple[D]||[]).some(x=>{const g=Math.abs(mod(x-t)); return Math.min(g,DAY-g)<DBL_GAP;});
+    first.forEach(s=>{const HA=s.b; if(!ix.hubs[HA])return;
+      const l1=s.legs[s.legs.length-1], need1=ix.mct[HA]+(customsIn(l1.a)?CUSTOMS:0);
+      (ix.from[HA]||[]).forEach(T=>{const HB=T.b; if(!ix.hubs[HB]||HB===HA)return;
+        if(T.rk===l1.rk&&T.k!==l1.k+1)return;
+        const ct1=mod(T.dep-s.arrB); if(ct1<need1||ct1>MAXCT)return;
+        const need2=ix.mct[HB]+(customsIn(HA)?CUSTOMS:0);
+        segsFrom(HB).forEach(t=>{const D=t.b; if(ix.hubs[D]||D===O)return;
+          if(t.legs[0].rk===T.rk&&t.legs[0].k!==T.k+1)return;
+          const ct2=mod(t.dep-T.arr); if(ct2<need2||ct2>MAXCT)return;
+          const legs=[...s.legs,T,...t.legs], seen=new Set([O]);
+          if(legs.some(l=>{if(seen.has(l.b))return true; seen.add(l.b); return false;}))return;     // never the same airport twice
+          const d=dPair[O+D]; if(!d)return;
+          const r=legs.reduce((x,l)=>x+nm(A[l.a],A[l.b]),0)/d, tol=0.18+0.00022*d;
+          if(1/(1+Math.pow(Math.max(0,r-1)/tol,2))<0.2)return;
+          if(near(D,s.dep))return;
+          add(D,{dep:s.dep,el:s.el+ct1+T.dur+ct2+t.el,segs:[s,{legs:[T],a:HA,b:HB,dep:T.dep,el:T.dur,arrB:T.arr},t],via:HA,via2:HB});});});});
+  }
   Object.keys(res).forEach(D=>{
     const L=res[D].map(it=>({...it,legsN:it.segs.reduce((a,s)=>a+s.legs.length,0)}));
     const keep=L.filter(x=>!L.some(y=>y!==x&&y.dep>=x.dep&&y.dep+y.el<=x.dep+x.el&&(y.dep>x.dep||y.dep+y.el<x.dep+x.el||y.legsN<x.legsN)));
@@ -68,10 +91,10 @@ function ttRow(it,O,D){
   const arr=mod(it.dep+it.el+(A[D].utc-A[O].utc));
   const flts=it.segs.map(s=>s.legs[0].flt).join('/');
   const stops=it.segs.reduce((a,s)=>a+(s.stop?1:0),0);
-  const how=it.via?`via ${it.via}${stops?` · ${stops} stop${stops>1?'s':''}`:''}`:stops?`1 stop ${it.segs[0].stop}`:'Nonstop';
+  const how=it.via?`via ${it.via}${it.via2?', '+it.via2:''}${stops?` · ${stops} stop${stops>1?'s':''}`:''}`:stops?`1 stop ${it.segs[0].stop}`:'Nonstop';
   const eq=[...new Set(it.segs.flatMap(s=>s.legs.map(l=>l.t)))].join('/');
   return `<tr><td>${fmt(it.dep)}</td><td>${fmt(arr)}${days>0?`<sup>+${days}</sup>`:''}</td><td><span class="fltno">${flts}</span></td>
-    <td class="tthow${it.via?' conn':''}">${how}</td><td class="tteq">${eq}</td></tr>`;
+    <td class="tthow${it.via2?' conn2':it.via?' conn':''}">${how}</td><td class="tteq">${eq}</td></tr>`;
 }
 function ttHalf(list,O,D,dir){
   const head=`<div class="tthead">${dir==='to'?'To':'From'} <b>${A[dir==='to'?D:O].n}</b> <i>${dir==='to'?D:O} · ${tzLabel(dir==='to'?D:O)}</i></div>`;
@@ -99,7 +122,7 @@ function renderTimetable(force){
   host.innerHTML=`<div class="ttcity"><h3>${A[X].n.toUpperCase()}</h3><i>${X} · ${tzLabel(X)}${hubOrder.includes(X)?' · your hub':''}</i></div>`
     +(dests.length?dests.map(D=>`<div class="ttblock" id="tt-${D}"><div>${ttHalf(out[D],X,D,'to')}</div><div>${ttHalf(inn[D],D,X,'from')}</div></div>`).join('')
       :`<div class="empty">No city matches "${ttFilter}".</div>`)
-    +`<div class="note">Times are local at each airport (<sup>+1</sup> = arrives the next day). Connections are shown where they fit the connection window passengers will book — ${hubOrder.map(c=>`${ix.mct[c]}m at ${c}`).join(', ')} minimum (+${CUSTOMS}m customs from abroad), up to ${hm(MAXCT)} — and aren't too roundabout. An option that leaves earlier and arrives later than another is left out.</div>`;
+    +`<div class="note">Times are local at each airport (<sup>+1</sup> = arrives the next day). Connections are shown where they fit the connection window passengers will book — ${hubOrder.map(c=>`${ix.mct[c]}m at ${c}`).join(', ')} minimum (+${CUSTOMS}m customs from abroad), up to ${hm(MAXCT)} — and aren't too roundabout. An option that leaves earlier and arrives later than another is left out.${hubOrder.length>1?` Double connections (via two hubs) appear only where nothing simpler leaves within ${DBL_GAP/60} hours.`:''}</div>`;
   ttKey=key;
 }
 

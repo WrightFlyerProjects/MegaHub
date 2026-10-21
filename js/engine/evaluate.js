@@ -97,7 +97,9 @@ function evalPrep(rots,fleet,gates,H,pre){
   });
 
   /* connections over the hub */
-  const cands=[];
+  const cands=[], simple={};
+  const addSimple=(k,t)=>(simple[k]=simple[k]||[]).push(t);
+  pairs.forEach(p=>addSimple(p.i+p.j,p.depLocal));
   inn.forEach(Ap=>out.forEach(Bp=>{
     if(Ap.spoke===Bp.spoke)return;
     if(Ap.rk===Bp.rk&&!(Ap.k!=null&&Bp.k===Ap.k+1))return;   // staying aboard through a hub stop is a connection
@@ -114,12 +116,13 @@ function evalPrep(rots,fleet,gates,H,pre){
     const P=pMake(ct-need-del);                    // late inbound eats the buffer
     const timeF=Math.min(1,Math.pow(0.80,(ct-refMin)/60));
     const circF=1/(1+Math.pow(Math.max(0,r-1)/tol,2));
+    if(circF>=0.2)addSimple(i+j,Ap.origLocal);        // a one-stop a passenger could book (the timetable lists it)
     const v=0.94*timeF*circF*P*pw(Ap.origLocal)*pw(Bp.destLocal)*Ap.mult*Bp.mult;
     if(v<0.02)return;
     cands.push({Ap,Bp,i,j,d,ct,r,v,P,del,need});
   }));
   const mk={},flows={};
-  return {cands,H,perRot,mk,flows,addPm:(a,b)=>{pm+=a;pax+=b;},finish:()=>{
+  return {cands,simple,inn,out,MCT_G,H,perRot,mk,flows,addPm:(a,b)=>{pm+=a;pax+=b;},finish:()=>{
   const cur=gateCurve(rots,fleet), peak=rots.length?Math.max(...cur):0;
   const seatMi=rots.reduce((a,r)=>{const ac=fleet.find(x=>x.id===r.ac);
     if(crossHub(r,H))return a+legPlan(r,ac,H).filter(l=>l.owner===H.c).reduce((s,l)=>s+ac.seats*nm(A[l.a],A[l.b]),0);
@@ -184,7 +187,9 @@ function evaluateMulti(list){
   if(list.some(o=>o.rots.some(r=>crossHub(r,o.H))))crossPrep(list,pre);
   const S=list.map((o,h)=>evalPrep(o.rots,o.fleet,o.gates,o.H,pre[h]));
   const all=[]; S.forEach((st,h)=>st.cands.forEach(c=>all.push({c,h})));
+  const dbl=list.length>1?doubleCands(S):[];
   const nItin={}; all.forEach(({c})=>nItin[c.i+c.j]=(nItin[c.i+c.j]||0)+1);
+  const nD={}; dbl.forEach(c=>nD[c.i+c.j]=(nD[c.i+c.j]||0)+1);   // doubles never change how one-stops sell
   all.sort((x,y)=>y.c.v-x.c.v);
   const used={};
   all.forEach(({c,h})=>{const s=S[h], perRot=s.perRot, mk=s.mk, flows=s.flows, H=s.H;
@@ -207,6 +212,23 @@ function evaluateMulti(list){
     mk[k].pax+=take;
     (flows[c.i]=flows[c.i]||{out:0,in:0}).out+=take;
     (flows[c.j]=flows[c.j]||{out:0,in:0}).in+=take;
+  });
+  /* double connections go last: only seats nobody simpler wanted (they never crowd out one-stops) */
+  dbl.sort((x,y)=>y.v-x.v).forEach(c=>{const s=S[c.h], k=c.i+c.j, av=spill(c.i,c.j);
+    const room=av*capture((nItin[k]||0)+nD[k],HALF_CONN)-(used[k]||0); if(room<=0)return;
+    const seats=Math.min(roomOf(c.Ap),roomOf(c.T),roomOf(c.Bp)); if(seats<=0.25)return;
+    const take=Math.min(room,seats,av*c.v);
+    if(take<=0.25)return;
+    used[k]=(used[k]||0)+take; [c.Ap,c.T,c.Bp].forEach(p=>takeFrom(p,take));
+    s.addPm(take*c.d,take);
+    const tot=c.dl[0]+c.dl[1]+c.dl[2];
+    [c.Ap,c.T,c.Bp].forEach((p,q)=>{const pr=p.pr; if(!pr)return; pr.pm+=take*c.d*c.dl[q]/tot; pr.connect+=take;
+      if(p.dir==='out')pr.outConnect+=take; else pr.retConnect+=take; legAdd(p,'connect',take);});
+    const mk=s.mk, kk=k+'|2';
+    if(!mk[kk])mk[kk]={i:c.i,j:c.j,d:c.d,ct:c.ct1+c.ct2,ct1:c.ct1,ct2:c.ct2,r:c.r,v:c.v,P:c.P,del:c.del,need:c.need,dbl:true,via:[c.A,c.B],pax:0,n:(nItin[k]||0)+nD[k]};
+    mk[kk].pax+=take;
+    (s.flows[c.i]=s.flows[c.i]||{out:0,in:0}).out+=take;
+    (s.flows[c.j]=s.flows[c.j]||{out:0,in:0}).in+=take;
   });
   return S.map(st=>st.finish());
 }
@@ -237,4 +259,43 @@ function crossPrep(list,pre){
             vf.push({pr,k:l.k,rec:{visit:q.H.c,homeRi:ri,dir:dep?'out':'ret',leg:l.k,ac:r.ac,seats:ac.seats,no:(pre[h].num&&pre[h].num.get(q.H.c+'#'+ri+'#L'+l.k))||l.no,from:l.a,to:l.b,via:null,
               hubTime:mod(dep?l.dep+tz:l.arr+tz),spokeTime:mod(dep?l.arr+tzD(l.b,q.H):l.dep+tzD(l.a,q.H)),delay:Math.round(del)}});}});});});
     pre[h].visitOut=vo; pre[h].visitIn=vi; pre[h].visitFlights=vf; pre[h].visitSeatMi=vs;});
+}
+
+/* Double connections (v3.14): spoke → hub A → hub B → spoke, A and B two different hubs joined by a
+   direct trunk flight. Strict rules: every airport appears at most once (no retracing — e.g. never
+   LAX→ATL→CHS→ATL→EYW); each connection inside that hub's window (MCT, + customs from abroad, up
+   to MAXCT); not too roundabout overall; offered only where nothing simpler (a through flight or a
+   single connection a passenger could book) leaves within DBL_GAP minutes; and DBL_PEN makes them
+   unattractive, so only a small fraction of travelers use them. */
+function doubleCands(S){
+  const out=[], hubIx={}; S.forEach((s,h)=>hubIx[s.H.c]=h);
+  const simple={}; S.forEach(s=>Object.entries(s.simple).forEach(([k,v])=>{(simple[k]=simple[k]||[]).push(...v);}));
+  const near=(k,t)=>(simple[k]||[]).some(x=>{const g=Math.abs(mod(x-t)); return Math.min(g,DAY-g)<DBL_GAP;});
+  S.forEach((sa,a)=>{const HA=sa.H;
+    sa.out.forEach(T=>{
+      if(T.legs.length!==1||!isOwnHub(T.spoke,HA))return;
+      const b=hubIx[T.spoke]; if(b==null)return; const sb=S[b];
+      const T2=sb.inn.find(q=>q.legs.length===1&&q.legs[0]===T.legs[0]); if(!T2)return;   // the same seats, seen from hub B
+      const need2=sb.MCT_G+(customsIn(HA.c)?CUSTOMS:0);
+      sa.inn.forEach(Ap=>{const O=Ap.spoke; if(isOwnHub(O,HA)||O===sb.H.c)return;
+        if(Ap.rk===T.rk&&!(Ap.k!=null&&T.k===Ap.k+1))return;
+        const need1=sa.MCT_G+(customsIn(O)?CUSTOMS:0), ct1=mod(T.depHub-Ap.arrHub);
+        if(ct1<need1||ct1>MAXCT)return;
+        const ref1=sa.MCT_G+(A[O].intl?CUSTOMS:0);
+        sb.out.forEach(Bp=>{const D=Bp.spoke; if(D===O||isOwnHub(D,HA)||D===HA.c)return;
+          if(T2.rk===Bp.rk&&!(T2.k!=null&&Bp.k===T2.k+1))return;
+          const ct2=mod(Bp.depHub-T2.arrHub); if(ct2<need2||ct2>MAXCT)return;
+          const legs=[...Ap.legs,...T.legs,...Bp.legs], seen=new Set([legs[0].a]);
+          if(legs.some(l=>{if(seen.has(l.b))return true; seen.add(l.b); return false;}))return;   // no airport twice
+          const d=dPair[O+D]; if(!d)return;
+          if(near(O+D,Ap.origLocal))return;                                                     // something simpler leaves within 6h
+          const dl=[Ap,T,Bp].map(p=>p.legs.reduce((x,l)=>x+nm(A[l.a],A[l.b]),0));
+          const r=(dl[0]+dl[1]+dl[2])/d, tol=0.18+0.00022*d, circF=1/(1+Math.pow(Math.max(0,r-1)/tol,2));
+          if(circF<0.2)return;
+          const P=pMake(ct1-need1-Ap.del)*pMake(ct2-need2-T.del);
+          const timeF=Math.min(1,Math.pow(0.80,(ct1+ct2-ref1-sb.MCT_G)/60));
+          const v=DBL_PEN*0.94*timeF*circF*P*pw(Ap.origLocal)*pw(Bp.destLocal)*Ap.mult*Bp.mult;
+          if(v<0.005)return;
+          out.push({h:a,A:HA.c,B:sb.H.c,Ap,T,Bp,i:O,j:D,d,dl,ct1,ct2,r,v,P,del:Ap.del,need:need1});});});});});
+  return out;
 }

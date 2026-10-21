@@ -47,7 +47,7 @@ function renderHubStats(E){
   /* tightest connections: best itinerary per market (evaluate() keeps its make-probability) */
   const live=launched, stale=!launched&&!!lastE, ms=live?E.markets:(lastE?lastE.markets:null);
   $('tightlab').textContent=stale?`${lastE.year} · last year`:'';
-  const tight=ms?ms.filter(m=>m.P!=null&&m.P<0.9).map(m=>({...m,lost:m.pax*(1-m.P)/Math.max(0.05,m.P)})).sort((a,b)=>b.lost-a.lost).slice(0,10):null;
+  const tight=ms?ms.filter(m=>!m.dbl&&m.P!=null&&m.P<0.9).map(m=>({...m,lost:m.pax*(1-m.P)/Math.max(0.05,m.P)})).sort((a,b)=>b.lost-a.lost).slice(0,10):null;
   $('hubTight').innerHTML=!tight?`<div class="empty">Hidden until you launch.</div>`
     :!tight.length?`<div class="empty">No tight connections — every market's best connection has a healthy buffer.</div>`
     :`<div class="${stale?'stale':''}"><table class="fptab"><tr><th>Market</th><th>Conn</th><th>Need</th><th>Late in</th><th>Makes</th><th>Lost</th></tr>`

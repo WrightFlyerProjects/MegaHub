@@ -103,7 +103,7 @@ function renderMarketsTab(E){
     conn=!ms?`<div class="empty">Connecting traffic hidden until you launch.</div>`
       :!ms.length?`<div class="empty">No connecting traffic through ${HUB.c} yet.</div>`
       :`<div class="${sc}"><table><tr><th>Market</th><th>Pax</th><th>Itin</th><th>Conn</th><th>Detour</th></tr>`
-        +ms.slice(0,14).map(m=>`<tr class="clik" data-mcity="${m.i===c?m.j:m.i}"><td>${m.i}→${m.j}</td><td>${Math.round(m.pax)}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td></tr>`).join('')
+        +ms.slice(0,14).map(m=>`<tr class="clik" data-mcity="${m.i===c?m.j:m.i}"><td>${m.i}→${m.j}${m.dbl?` <span class="flag f-line" title="double connection via ${m.via.join(' and ')}">2 hubs</span>`:''}</td><td>${Math.round(m.pax)}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td></tr>`).join('')
         +`</table>${ms.length>14?`<div class="note">+ ${ms.length-14} more markets</div>`:''}</div>`;
   }else{
     const pot=[...served].map(x=>({x,p:connPot(c,x)+connPot(x,c)})).filter(o=>o.p>=1).sort((a,b)=>b.p-a.p);
@@ -170,7 +170,7 @@ function renderMarketsTab(E){
   const ms=show?show.markets.filter(m=>!q||m.i.includes(q)||m.j.includes(q)||(m.i+'–'+m.j).includes(q)):null;
   $('markets').innerHTML=!show?`<div class="empty">Hidden until you launch.</div>`
     :`<div class="${sc}">`+(ms.length?`<table><tr><th>Market</th><th>Itin</th><th>Conn</th><th>Detour</th><th>Pax</th><th></th></tr>`+
-      ms.slice(0,20).map(m=>`<tr class="clik" data-mcity="${m.i}"><td>${m.i}–${m.j}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td>
+      ms.slice(0,20).map(m=>`<tr class="clik" data-mcity="${m.i}"><td>${m.i}–${m.j}${m.dbl?` <span class="flag f-line" title="double connection via ${m.via.join(' and ')}">2 hubs</span>`:''}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td>
         <td>${m.r.toFixed(2)}×</td><td>${Math.round(m.pax)}</td><td><span class="pill ${pcls(m.v)}">${Math.round(m.v*100)}%</span></td></tr>`).join('')
       +`</table>${ms.length>20?`<div class="note">showing 20 of ${ms.length} — search to narrow</div>`:''}`
     :show.markets.length?`<div class="empty">No market matches "${mkFilter}".</div>`

@@ -285,7 +285,7 @@ function renderCity(c,E){
     ${launched?`<div style="margin-top:16px"><h2>Connecting flow through ${HUB.c}</h2>
       <div class="rowv" style="margin-bottom:8px"><span>${Math.round(fl.out)} pax originate ${c} and connect onward</span><span>${Math.round(fl.in)} pax connect to ${c}</span></div>
       ${mk.length?`<table><tr><th>Market</th><th>Conn</th><th>Detour</th><th>Pax</th><th></th></tr>`+
-        mk.map(m=>`<tr><td>${m.i}–${m.j}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td><td>${Math.round(m.pax)}</td>
+        mk.map(m=>`<tr><td>${m.i}–${m.j}${m.dbl?` <span class="flag f-line" title="double connection via ${m.via.join(' and ')}">2 hubs</span>`:''}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td><td>${Math.round(m.pax)}</td>
         <td><span class="pill ${pcls(m.v)}">${Math.round(m.v*100)}%</span></td></tr>`).join('')+`</table>`:`<div class="empty">No connecting traffic yet.</div>`}</div>`
       :`<div class="empty" style="margin-top:12px">Passenger flow hidden until you launch.</div>`}`;
 }

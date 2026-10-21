@@ -331,3 +331,4 @@ details.openhub select{margin-top:8px}
 .tttab{width:100%;table-layout:fixed;font:500 11px/1.45 var(--mono)} .tttab th{font-size:9px;padding:1px 4px 1px 0;text-align:left} .tttab td{padding:1px 6px 1px 0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tttab sup{font-size:8px;color:var(--mag);margin-left:1px} .tthow{color:var(--ink2)} .tthow.conn{color:var(--blue)} .tteq{color:var(--ink3);font-size:10px}
 .ttnone{font:400 11px var(--mono);color:var(--ink3);padding:2px 0}
+.tthow.conn2{color:var(--violet)}
