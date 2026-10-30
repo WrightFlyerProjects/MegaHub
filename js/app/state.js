@@ -78,7 +78,7 @@ function airEval(){
 const evalView=()=>airEval().byHub[HC.c];
 /* the airline's one flight-number assignment (unique per hub) */
 const numOf=(key,fallback)=>{const m=airEval().nums; return (m&&m.get(key))||fallback;};
-const hubViol=c=>{const h=hubStore[c]; return h?scheduleViolations(h.rots,vFleetOf(c),h.gates,h.tiers):[];};
+const hubViol=c=>{const h=hubStore[c]; if(!h)return []; const hs=netHubs(), x=hs.find(q=>q.c===c); return scheduleViolations(h.rots,vFleetOf(c,hs),h.gates,h.tiers,x?x.H:makeHub(c,h.band||0));};
 let yearStartSnap=null;           // state at the start of the year currently being played
 const UNDO_MAX=20;
 let airline={name:'MegaHub Airways',c1:'#2A6C99',c2:'#16283C'};
@@ -90,7 +90,7 @@ const X=t=>(t/DAY)*100;
 const qcls=v=>v>=.72?'q-hi':v>=.45?'q-md':'q-lo';
 const pcls=v=>v>=.72?'p-hi':v>=.45?'p-md':'p-lo';
 const MCTg=()=>mctFor(gatesOwned);
-const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','SLC','PHX','LAX','JFK','MIA','RDU','DCA'];
+const HUBS=['DFW','ORD','ATL','DEN','IAH','MSP','DTW','STL','CVG','PIT','CLT','SLC','PHX','LAX','JFK','MIA','RDU','DCA','EWR','IAD'];
 
 function startGame(){
   setYear(YEAR_MIN); hubOrder=['DFW']; hubStore={}; lastHubs={}; setHub('DFW');

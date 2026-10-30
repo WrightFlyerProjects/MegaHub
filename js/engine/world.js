@@ -9,12 +9,15 @@ const dPair={};
 AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{if(a.c!==b.c)dPair[a.c+b.c]=nm(a,b);}));
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return ((h>>>0)%1000)/1000;}
 /* base spill is also hub-independent: it's the market's own demand vs its own nonstops */
+/* v3.16: a vacation market (US/Canada ↔ Caribbean, Bahamas, Bermuda) is scaled up; Canadian codes start with Y */
+const homeMkt=a=>!a.vac&&(!a.intl||a.c[0]==='Y');
+const vacF=(a,b)=>a.vac&&homeMkt(b)?vacMult(a.w):b.vac&&homeMkt(a)?vacMult(b.w):1;
 const spillBase={};
 AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{
   if(a.c===b.c)return;
   const k=a.c+b.c,d=dPair[k];
   if(d<MIN_STAGE){spillBase[k]=0;return;}          // people drive it
-  const dem=Math.round(30*a.w*b.w/Math.pow(d,0.35));
+  const dem=Math.round(30*a.w*b.w/Math.pow(d,0.35)*vacF(a,b));
   const key=[a.c,b.c].sort().join(''),lo=Math.min(a.w,b.w),hi=Math.max(a.w,b.w);
   let ns=0;
   if(lo>=5.2&&d>180) ns=Math.round(26*(lo+hi)*(0.6+0.8*hash(key)));
@@ -46,7 +49,7 @@ const availTypes=()=>{const y=Math.min(YEAR,DATA_MAX);return CATALOG.filter(c=>y
 setYear(YEAR_MIN);
 
 const tzD=(c,H)=>A[c].utc-H.ap.utc;               // local time at c minus local time at hub H
-const hubOD=c=>Math.round(52*A[c].w*growth);      // per direction
+const hubOD=c=>Math.round(52*A[c].w*growth*(A[c].vac?vacMult(A[c].w):1));      // per direction; hubs are all US/Canada-side
 const spill=(i,j)=>Math.round(spillBase[i+j]*growth);
 
 /* A bigger terminal is a slower terminal: longer walks, more remote stands.

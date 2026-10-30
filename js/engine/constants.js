@@ -25,4 +25,6 @@ const HEAVY_SEATS=200;                   // the widebody line (same one TURN_WID
 const TOW_AFTER=45, TOW_MIN_GROUND=90;   // on the ground 90m+: customs gate needed only for the first 45m
 /* US preclearance, era-accurate for 1988–2005: these flights clear US customs before departure,
    so they arrive as domestic — no customs gate, no customs time on connections. */
-const PRECLEAR=new Set(['YYZ','YVR','YUL','YYC','BDA','NAS','AUA']);
+const PRECLEAR=new Set(['YYZ','YVR','YUL','YYC','YOW','YEG','YWG','BDA','NAS','FPO','AUA']);
+const VAC_MULT=3, VAC_KNEE=1.2;   // v3.16 vacation demand: ×3 up to weight 1.2; above that the boost stays +2.4 weight (v3.17)
+const vacMult=w=>(w+(VAC_MULT-1)*Math.min(w,VAC_KNEE))/w;     // MBJ 1.2 → ×3 · SDQ 1.8 → ×2.33 · SJU 2.4 → ×2

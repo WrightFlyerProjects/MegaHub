@@ -85,6 +85,7 @@ function typeCanFly(cat,legs){
     const d=nm(A[a],A[b]);
     if(d>cat.rng)return false;
     if((A[a].ocean||A[b].ocean)&&d>OCEAN_LEG&&!cat.etops)return false;
+    if(legBlocked(cat,a,b))return false;             // runway or airport rule (v3.17)
     return true;
   });
 }
@@ -218,9 +219,9 @@ function renderStats(E){
     ['On-time',(multi?TT.rots:rots.length)?Math.round(TT.otp*100)+'%':'—',
       rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m`:'no flying','v']
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
-  const viol=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers);
+  const viol=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers,HC);
   if(viol.length){
-    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier');
+    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier'), lims=viol.filter(v=>v.kind==='limit');
     $('viol').style.display='block';
     $('viol').innerHTML=`<h2 style="border-color:rgba(178,58,58,.3);color:var(--red)">Schedule no longer legal</h2>`
       +(turns.length?`<div class="rowv" style="margin-bottom:6px"><span>${turns.length} rotation${turns.length>1?'s':''} break the ${minTurnHub(owned)}-minute hub turn</span></div>`
@@ -230,6 +231,10 @@ function renderStats(E){
           ?`${v.peak} arrivals from abroad need customs gates`:`${v.peak} aircraft need heavy-capable gates <span style="color:var(--ink3)">(widebodies + customs arrivals)</span>`}</td>
           <td>${fmt(v.start)}–${fmt(v.end)}</td><td style="color:var(--red)">you have ${v.have}</td></tr>`).join('')}</table>
           <div class="note">Upfit gates on the Fleet tab, or retime so fewer overlap. International gates also take widebodies.</div>`:'')
+      +(lims.length?`<div class="rowv" style="margin-top:6px"><span>${lims.length} rotation${lims.length>1?'s':''} break${lims.length>1?'':'s'} an airport limit</span></div>`
+        +`<table>${lims.slice(0,8).map(v=>`<tr class="clik" data-editrot="${v.idx}"><td style="white-space:nowrap">${v.ac} → ${v.via?v.via+'–':''}${v.dst}</td><td style="text-align:left;color:var(--red)">${v.msg}</td></tr>`).join('')}</table>`
+        +(lims.length>8?`<div class="note">…and ${lims.length-8} more.</div>`:'')
+        +`<div class="note">Click a rotation to edit it: change the aircraft, retime it, or remove it.</div>`:'')
       +(turns.length?`<button id="autofix">Nudge departures later</button>`:'');
     if(turns.length)$('autofix').onclick=()=>{
       const r=repairSchedule(rots,owned,gatesOwned,gateTiers);

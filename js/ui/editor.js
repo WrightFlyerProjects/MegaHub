@@ -28,6 +28,7 @@ function canLeg(ac,a,b){
   if(nm(A[a],A[b])<MIN_STAGE)return false;
   if(nm(A[a],A[b])>ac.rng)return false;
   if((A[a].ocean||A[b].ocean)&&!ac.etops)return false;
+  if(legBlocked(ac,a,b))return false;               // runway or airport rule (v3.17)
   return true;}
 const curAC=()=>owned.find(a=>a.id===$('ac').value);
 const hm=m=>Math.floor(m/60)+'h'+String(Math.round(m%60)).padStart(2,'0');
@@ -69,7 +70,9 @@ function renderCombo(which){
     }
     const r=reachability(ac,s.c);
     const bd=r==='ok'?'<span class="badge b-ok">nonstop</span>':r==='via'?'<span class="badge b-via">via only</span>'
-      :(s.ocean&&!ac.etops?'<span class="badge b-no">no ETOPS</span>':'<span class="badge b-no">out of range</span>');
+      :(s.ocean&&!ac.etops?'<span class="badge b-no">no ETOPS</span>'
+        :dHub[s.c]<=ac.rng&&legBlocked(ac,HUB.c,s.c)?`<span class="badge b-no" title="${legBlocked(ac,HUB.c,s.c)}">${runwayErr(ac,HUB.c,s.c)?'runway':'airport rule'}</span>`
+        :'<span class="badge b-no">out of range</span>');
     const flag=s.intl?'<span class="badge b-via" title="customs adds 30m to inbound connections">intl</span> ':'';
     return `<div class="citem ${r==='no'?'dis':''}" ${r==='no'?'':`data-pick="${s.c}" data-for="dest"`}>
       <span><b>${s.c}</b> <em>${s.n}</em></span>

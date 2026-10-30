@@ -49,35 +49,62 @@ function mapZoomBy(factor,fx,fy){
 }
 function mapReset(){ mapZoom=1; mapPanX=0; mapPanY=0; applyMapView(); }
 
+/* v3.15 — the network as one hub sees it, whoever's aircraft fly it.
+   Every leg the airline flies belongs to the hub(s) it touches (a hub-to-hub trunk belongs to
+   both); a spoke-to-spoke leg (the middle of a via routing) belongs to its aircraft's home hub.
+   A city's frequency counts trips from (or to) hub X that call there, so X–COS–PUB is 1× COS and
+   1× PUB, and an ATL aircraft flying ATL–DEN–SEA gives DEN 1× SEA. */
+function hubNet(X){
+  const hs=hubOrder.length>1?netHubs():[{c:HC.c,H:HC,rots,fleet:owned}], hubSet=new Set(hs.map(h=>h.c));
+  const mine={}, other={}, out={}, inn={}, types={};
+  const addSeg=(bag,l,ac,owner)=>{const key=[l.a,l.b].sort().join('-');
+    const s=bag[key]=bag[key]||{a:l.a,b:l.b,seats:0,dir:{},hub:owner,types:new Set()};
+    s.seats+=ac.seats; s.dir[l.a]=(s.dir[l.a]||0)+1; s.types.add(ac.t);};
+  hs.forEach(h=>h.rots.forEach(r=>{const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
+    const legs=shape(r,ac,h.H).legs;
+    legs.forEach(l=>{const touches=l.a===X||l.b===X, anyHub=hubSet.has(l.a)||hubSet.has(l.b);
+      if(touches||(!anyHub&&h.c===X))addSeg(mine,l,ac,X);
+      else addSeg(other,l,ac,hubSet.has(l.a)?l.a:hubSet.has(l.b)?l.b:h.c);});
+    /* trips: hub to hub, calling at spokes in between */
+    let from=legs[0].a, calls=[];
+    legs.forEach(l=>{ if(!hubSet.has(l.b)){if(!calls.includes(l.b))calls.push(l.b); return;}
+      const to=l.b, at=calls.length?calls:[from===X?to:from];
+      if(from===X)at.forEach(c=>{if(c!==X){out[c]=(out[c]||0)+1;(types[c]=types[c]||new Set()).add(ac.t);}});
+      if(to===X)at.forEach(c=>{if(c!==X){inn[c]=(inn[c]||0)+1;(types[c]=types[c]||new Set()).add(ac.t);}});
+      from=to; calls=[];});}));
+  const f={}; new Set([...Object.keys(out),...Object.keys(inn)]).forEach(c=>f[c]=Math.max(out[c]||0,inn[c]||0));
+  const fin=bag=>Object.values(bag).map(s=>({a:s.a,b:s.b,seats:s.seats,hub:s.hub,types:[...s.types],f:Math.max(...Object.values(s.dir),0)}));
+  return {segs:fin(mine),other:fin(other),f,types:Object.fromEntries(Object.entries(types).map(([k,v])=>[k,[...v]])),hubs:[...hubSet]};
+}
+
 function renderMap(E){
-  if(!rots.length){$('map').innerHTML='<div class="empty" style="padding:24px 14px">Schedule a rotation and your route map appears here.</div>';
+  const NV=hubNet(HUB.c);
+  if(!NV.segs.length){$('map').innerHTML='<div class="empty" style="padding:24px 14px">Schedule a rotation and your route map appears here.</div>';
     $('netlab').textContent='—';return;}
-  const codes=new Set([HUB.c]); rots.forEach(r=>{codes.add(r.dst); if(r.via)codes.add(r.via);});
-  /* other hubs' networks, drawn underneath (multi-hub only) */
-  const others=hubOrder.filter(c=>c!==HC.c&&hubStore[c]).map(c=>({c,rots:hubStore[c].rots,fleet:hubStore[c].fleet}));
-  const extra=new Set(); others.forEach(o=>{extra.add(o.c); o.rots.forEach(r=>{extra.add(r.dst); if(r.via)extra.add(r.via);});});
+  const codes=new Set([HUB.c]); NV.segs.forEach(s=>{codes.add(s.a); codes.add(s.b);});
+  /* the rest of the airline's network, drawn underneath (multi-hub only) */
+  const extra=new Set(NV.hubs); NV.other.forEach(s=>{extra.add(s.a); extra.add(s.b);});
   const pts=[...codes,...[...extra].filter(c=>!codes.has(c))].map(c=>A[c]);
   const lat0=pts.reduce((a,p)=>a+p.lat,0)/pts.length;
   const k=Math.cos(lat0*Math.PI/180);
-  const px=p=>p.lon*k, py=p=>-p.lat;
+  /* v3.17: East Asia & the Pacific (east of 90°E) are drawn west of the Americas, so trans-Pacific
+     flights cross the Pacific instead of wrapping over Europe. Europe, Africa, the Middle East and India
+     stay east. Display only — every distance in the game is great-circle. */
+  const wlon=lon=>lon>=90?lon-360:lon;
+  const px=p=>wlon(p.lon)*k, py=p=>-p.lat;
   const xs=pts.map(px), ys=pts.map(py);
   const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
   const W=760,H=Math.max(300,Math.min(520,W*((y1-y0)||1)/((x1-x0)||1)+70)),P=42;
   const sx=v=>P+((v-x0)/((x1-x0)||1))*(W-2*P), sy=v=>P+((v-y0)/((y1-y0)||1))*(H-2*P);
   const X=c=>sx(px(A[c])), Y=c=>sy(py(A[c]));
 
-  // aggregate segments
+  // segments touching this hub, flown by any of the airline's aircraft (v3.15)
   const seg={}; const spokePax={};
   E.local.forEach(l=>spokePax[l.c]=l.pax);
-  rots.forEach(r=>{
-    const ac=owned.find(a=>a.id===r.ac);
-    const legs=r.via?[[HUB.c,r.via],[r.via,r.dst]]:[[HUB.c,r.dst]];
-    legs.forEach(([a,b])=>{const key=[a,b].sort().join('-');
-      seg[key]=seg[key]||{a,b,f:0,seats:0};seg[key].f++;seg[key].seats+=ac.seats*2;});
-  });
+  NV.segs.forEach(s=>seg[[s.a,s.b].sort().join('-')]=s);
   // geometry only; symbols are drawn by drawMapLayer() at the current zoom
-  const freq={}; rots.forEach(r=>{freq[r.dst]=(freq[r.dst]||0)+1; if(r.via)freq[r.via]=(freq[r.via]||0)+1;});
-  const segLF={}; if(launched)(E.legs||[]).forEach(l=>{const k=[l.a,l.b].sort().join('-');(segLF[k]=segLF[k]||{p:0,s:0});segLF[k].p+=l.pax;segLF[k].s+=l.seats;});
+  const freq=NV.f;
+  const segLF={}; if(launched)(hubOrder.length>1?Object.values(airEval().byHub).flatMap(e=>e.legs||[]):(E.legs||[])).forEach(l=>{const k=[l.a,l.b].sort().join('-');(segLF[k]=segLF[k]||{p:0,s:0});segLF[k].p+=l.pax;segLF[k].s+=l.seats;});
   const segs=Object.values(seg).map(s=>{
     const x1v=X(s.a),y1v=Y(s.a),x2=X(s.b),y2=Y(s.b);
     const mx=(x1v+x2)/2,my=(y1v+y2)/2, dx=x2-x1v,dy=y2-y1v, L=Math.hypot(dx,dy)||1;
@@ -89,15 +116,13 @@ function renderMap(E){
     return {c,x:X(c),y:Y(c),pax:p,f:freq[c]||0,r:Math.max(5,2.4+Math.min(7,Math.sqrt(p)/3.2))};})
     .sort((a,b)=>b.pax-a.pax);
   const grat=[];
-  for(let lon=-180;lon<=-50;lon+=10){const x=sx(lon*k);if(x>P-20&&x<W-P+20)grat.push([x,P-14,x,H-P+14]);}
-  for(let lat=10;lat<=70;lat+=5){const y=sy(-lat);if(y>P-20&&y<H-P+20)grat.push([P-14,y,W-P+14,y]);}
+  for(let lon=-270;lon<90;lon+=10){const x=sx(lon*k);if(x>P-20&&x<W-P+20)grat.push([x,P-14,x,H-P+14]);}
+  for(let lat=-50;lat<=70;lat+=5){const y=sy(-lat);if(y>P-20&&y<H-P+20)grat.push([P-14,y,W-P+14,y]);}
 
-  const oseg={}; others.forEach(o=>o.rots.forEach(r=>{const ac=o.fleet.find(a=>a.id===r.ac); if(!ac)return;
-    (r.via?[[o.c,r.via],[r.via,r.dst]]:[[o.c,r.dst]]).forEach(([a,b])=>{const key=[a,b].sort().join('-');
-      oseg[key]=oseg[key]||{a,b,seats:0,f:0,hub:o.c}; oseg[key].f++; oseg[key].seats+=ac.seats*2;});}));
+  const oseg={}; NV.other.forEach(s=>oseg[[s.a,s.b].sort().join('-')]=s);
   const otherSegs=Object.values(oseg).map(s=>{const x1=X(s.a),y1=Y(s.a),x2=X(s.b),y2=Y(s.b), mx=(x1+x2)/2,my=(y1+y2)/2, dx=x2-x1,dy=y2-y1, L=Math.hypot(dx,dy)||1;
     return {...s,x1,y1,x2,y2,cx:mx-dy/L*L*0.10,cy:my+dx/L*L*0.10,w:Math.max(1,Math.min(6,0.7+s.seats/260))};});
-  const otherHubs=others.map(o=>({c:o.c,x:X(o.c),y:Y(o.c)}));
+  const otherHubs=NV.hubs.filter(c=>c!==HUB.c).map(c=>({c,x:X(c),y:Y(c)}));
   mapView={W,H,segs,nodes,grat,hub:{c:HUB.c,x:X(HUB.c),y:Y(HUB.c)},otherSegs,otherHubs};
   const vb=mapViewBox(W,H);
   $('map').innerHTML=`<div class="mapwrap">
@@ -158,7 +183,7 @@ function drawMapLayer(){
     }
   }
   const hubText=`<text x="${f1(hubLab.x)}" y="${f1(hubLab.y)}" font-family="Archivo Narrow,sans-serif" font-weight="700" font-size="${f2(13*s)}" fill="${airline.c1}" style="pointer-events:none">${hub.c}</text>`;
-  const oArcs=oS.map(q=>`<path d="M${f1(q.x1)} ${f1(q.y1)} Q${f1(q.cx)} ${f1(q.cy)} ${f1(q.x2)} ${f1(q.y2)}" fill="none" stroke="#9AA5B1" stroke-width="${f2(q.w*s)}" stroke-linecap="round" opacity="0.4"><title>${q.hub} network · ${q.a}–${q.b} · ${q.f}× daily</title></path>`).join('');
+  const oArcs=oS.map(q=>`<path d="M${f1(q.x1)} ${f1(q.y1)} Q${f1(q.cx)} ${f1(q.cy)} ${f1(q.x2)} ${f1(q.y2)}" fill="none" stroke="#9AA5B1" stroke-width="${f2(q.w*s)}" stroke-linecap="round" opacity="0.4"><title>${q.hub} network · ${q.a}–${q.b} · ${q.f}× daily · ${q.seats} seats/day</title></path>`).join('');
   const oHubs=oH.map(o=>{const z=11*s; return `<rect class="mapnode" data-viewhub="${o.c}" x="${f1(o.x-z/2)}" y="${f1(o.y-z/2)}" width="${f2(z)}" height="${f2(z)}" fill="#F4F1EA" stroke="${airline.c1}" stroke-width="${f2(2*s)}" style="cursor:pointer"><title>${o.c} — ${A[o.c].n} · your hub · click to view</title></rect>
     <text x="${f1(o.x+8*s)}" y="${f1(o.y+4*s)}" font-family="Archivo Narrow,sans-serif" font-weight="700" font-size="${f2(12*s)}" fill="${airline.c1}" opacity=".7" style="pointer-events:none">${o.c}</text>`;}).join('');
   g.innerHTML=gr+oArcs+arcs+dots+oHubs+hubSym+labs.join('')+hubText;

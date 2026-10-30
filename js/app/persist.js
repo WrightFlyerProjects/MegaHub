@@ -20,7 +20,7 @@ function snapshot(){
   return {v:SAVE_VERSION, ts:Date.now(),
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     year:year(), points, cumPm, results, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
-    view:HC.c, pointsLog,
+    view:HC.c, pointsLog, rules:1,                 // rules:1 — written under airport limits (v3.17)
     hubs:hubOrder.map(c=>{const h=hubStore[c]; return {c,band:h.band||0,gates:h.gates,tiers:h.tiers,
       fleet:slimFleet(h.fleet),rots:slimRots(h.rots),last:slimLast(lastHubs[c])};})};
 }
@@ -30,14 +30,14 @@ function restoreHub(h){
   if(!A[h.c])throw new Error(`Unknown hub ${h.c}`);
   hubStore[h.c]={band:h.band||0}; setHub(h.c);
   gatesOwned=h.gates|0; owned=[];
-  (h.fleet||[]).forEach(f=>{const c=CATALOG.find(x=>x.t===f.t); if(c)owned.push(f.pair?{id:f.id,...c,pair:f.pair}:{id:f.id,...c});});
+  (h.fleet||[]).forEach(f=>{const t=TYPE_RENAMED[f.t]||f.t, c=CATALOG.find(x=>x.t===t); if(c)owned.push(f.pair?{id:f.id,...c,pair:f.pair}:{id:f.id,...c});});
   owned.forEach(a=>{if(!a.pair)return; const b=owned.find(x=>x.id===a.pair);           // keep only valid, mutual, same-type pairs
     if(!b||b.pair!==a.id||b.t!==a.t)delete a.pair;});
   rots=[]; const dropped=[];
   (h.rots||[]).forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac);
     if(!ac||!A[r.dst]||r.dst===HUB.c){dropped.push({...r,why:'aircraft or city missing'});return;}
-    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0,HC);
+    const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0,HC,true);   // airport limits are flagged, not dropped (v3.17)
     if(err){dropped.push({...r,why:err});return;}
     rots.push(mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,r.pad||0));
   });
@@ -82,6 +82,8 @@ function restore(s){
   list.forEach(h=>{hubOrder.push(h.c); restoreHub(h).forEach(d=>dropped.push(d));});
   loadView(s.view&&hubStore[s.view]?s.view:hubOrder[0]);
   launched=!!s.launched && dropped.length===0;
+  if(!s.rules){const n=hubOrder.reduce((k,c)=>k+hubViol(c).filter(v=>v.kind==='limit').length,0);
+    if(n)tierNotice=(tierNotice?tierNotice+' ':'')+`Airports now have limits — runway length, perimeter rules, curfews. ${n} of your rotations ${n>1?'break':'breaks'} one; ${n>1?"they're":"it's"} flagged in red and must be fixed before your next launch.`;}
   pending={}; gatesPending=0; tierPend={H:0,I:0}; editIdx=null; selCity=null; destSel=''; viaSel='';
   return dropped;
 }

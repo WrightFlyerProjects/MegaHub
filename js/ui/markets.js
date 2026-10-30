@@ -77,8 +77,9 @@ function renderMarketsTab(E){
     +`</optgroup><optgroup label="Not served — biggest hub market first">`
     +uns.map(s=>`<option value="${s.c}"${s.c===c?' selected':''}>${s.c} — ${s.n} · ${2*hubOD(s.c)}/day</option>`).join('')+`</optgroup>`;
 
-  const f=rots.filter(r=>r.dst===c||r.via===c).length, half=halfLocal(c,HC), market=2*hubOD(c);
-  const tys=[...new Set(rots.filter(r=>r.dst===c||r.via===c).map(r=>owned.find(a=>a.id===r.ac)).filter(Boolean).map(a=>a.t))];
+  const NV=hubNet(HC.c);                                    // counts other hubs' aircraft flying here too (v3.15)
+  const f=NV.f[c]||0, half=halfLocal(c,HC), market=2*hubOD(c);
+  const tys=NV.types[c]||[];
   const Lc=locals?locals.find(l=>l.c===c):null;
   const kv=(k,v,cls)=>`<tr><td>${k}</td><td class="${cls||''}">${v}</td></tr>`;
   const plus1=Math.round(market*(capture(f+1,half)-capture(f,half)));

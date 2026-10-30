@@ -1,5 +1,5 @@
 /* MegaHub · js/engine/ops.js — rotation validation, delay model, schedule violations + auto-repair, free windows */
-function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx,pad,H){
+function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx,pad,H,noLimits){   // noLimits: loading a save (limits are flagged, not dropped)
   const ac=fleet.find(a=>a.id===acId);
   if(!ac)return 'Pick an aircraft';
   if(via){
@@ -16,6 +16,10 @@ function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx,pad,H){
     if((A[L.a].ocean||A[L.b].ocean)&&nm(A[L.a],A[L.b])>OCEAN_LEG&&!ac.etops)
       return `${ac.t} is not certified for extended overwater flight — it cannot fly ${L.a}–${L.b}`;
   }
+  if(!noLimits){                                     // airport limits (v3.17)
+    const le=limitErr(cand,ac,H); if(le)return le;
+    if(dcaBeyond(cand,ac,H)&&rots.some((r,i)=>i!==skipIdx&&fleet.some(a=>a.id===r.ac&&dcaBeyond(r,a,H))))
+      return dcaAllowanceMsg()+' — this hub already uses it';}
   const tmin=turnAt(dst,ac,H);
   if(turn<tmin&&isOwnHub(dst,H)) return `${dst} is one of your hubs — ${ac.t} needs its ${tmin} min hub turn there`;
   if(turn<tmin) return A[dst].intl
@@ -140,7 +144,7 @@ const pMake=slack=>1/(1+Math.exp(-(slack+8)/6));
 
 /* Every rotation must still be legal after the fleet changes.
    Buying a third aircraft type lengthens the hub turn and can strand old rotations. */
-function scheduleViolations(rots,fleet,gates,tiers){
+function scheduleViolations(rots,fleet,gates,tiers,H){          // H given → airport limits are checked too (v3.17)
   const v=[], mt=minTurnHub(fleet);
   fleet.forEach(a=>{
     if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{
@@ -157,6 +161,10 @@ function scheduleViolations(rots,fleet,gates,tiers){
   const peak=rots.length?Math.max(...gateCurve(rots,fleet)):0;
   if(peak>gates) v.push({kind:'gates',peak,gates});
   tierViolations(rots,fleet,tiers).forEach(x=>v.push(x));
+  if(H){rots.forEach((r,i)=>{const ac=fleet.find(a=>a.id===r.ac); if(!ac)return; const msg=limitErr(r,ac,H);
+      if(msg)v.push({kind:'limit',idx:i,ac:r.ac,dst:r.dst,via:r.via||null,msg});});
+    dcaOverflow(rots,fleet,H).forEach(i=>{if(!v.some(x=>x.kind==='limit'&&x.idx===i))
+      v.push({kind:'limit',idx:i,ac:rots[i].ac,dst:rots[i].dst,via:rots[i].via||null,msg:dcaAllowanceMsg()+' — this hub already uses it'});});}
   return v;
 }
 /* minimal repair: push the offending departures later, cascading, never reordering */

@@ -2,7 +2,7 @@
 let newHubPick=null, newHubGates=2, newHubOpen=false;   // the open-a-hub section starts folded away
 
 /* violations for any hub, using live data for the one being viewed */
-const hubProblems=c=>c===HC.c?scheduleViolations(rots,vFleet(),gatesOwned,gateTiers):hubViol(c);
+const hubProblems=c=>c===HC.c?scheduleViolations(rots,vFleet(),gatesOwned,gateTiers,HC):hubViol(c);
 
 function renderHubSwitch(){
   const el=$('hubsw'); if(!el)return;
