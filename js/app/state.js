@@ -75,6 +75,8 @@ function airEval(){
   if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
   _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs))}; _airSig=sig; return _airE;
 }
+/* pre-v3.18 numbers for the current schedule, computed on demand (only last year's records need them) */
+const oldNums=()=>{const AE=airEval(); return AE.oldNums||(AE.oldNums=numberFlightsLegacy(netList(AE.hubs)));};
 const evalView=()=>airEval().byHub[HC.c];
 /* the airline's one flight-number assignment (unique per hub) */
 const numOf=(key,fallback)=>{const m=airEval().nums; return (m&&m.get(key))||fallback;};

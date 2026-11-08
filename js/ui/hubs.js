@@ -24,7 +24,7 @@ function renderHubsPanel(){
     if(vis.length){const cur=gateCurve([],vis), tc=gateTierCurves([],vis), pk=Math.max(...cur), nI=Math.max(0,...tc.i), nH=Math.max(0,...tc.h);
       const from=[...new Set(vis.map(v=>v.visit))].join(' and ');
       preNote=`<div class="note" style="color:var(--amber)">${from} already fl${from.includes(' and ')?'y':'ies'} to ${newHubPick}: ${vis.reduce((a,v)=>a+v.visitIv.length,0)} visits a day. Those become trunks and use ${newHubPick}'s gates — up to ${pk} at once${nH?`, ${nH} needing a heavy gate${nI?` (${nI} international)`:''}`:''}.</div>`;}}
-  const rows=hs.map(h=>`<tr class="${h.c===HC.c?'hubon':''}" title="${A[h.c].n} · flight numbers ${h.band?h.band+'100–'+h.band+'999':'100–999'}">
+  const rows=hs.map(h=>`<tr class="${h.c===HC.c?'hubon':''}" title="${A[h.c].n}">
       <td><b>${h.c}</b></td><td>${h.fleet.length} ac</td>
       <td>${h.gates} gates${h.tiers.H||h.tiers.I?` <span style="color:var(--ink3)">${h.tiers.H}H·${h.tiers.I}I</span>`:''}</td>
       <td>${h.c===HC.c?'<span style="color:var(--ink3)">viewing</span>':`<span class="x" data-viewhub="${h.c}">view</span>`}${hs.length>1&&!h.fleet.length?` · <span class="x" data-closehub="${h.c}" title="no aircraft based here">close</span>`:''}</td></tr>`).join('');

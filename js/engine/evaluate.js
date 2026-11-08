@@ -153,7 +153,7 @@ function evalPrep(rots,fleet,gates,H,pre){
     const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
     // outbound: hub -> (via ->) dst
     flights.push({ri:i, dir:'out', ac:r.ac, seats,
-      no:(pre.num&&pre.num.get(hubC+'#'+i+'#out'))||flightNo(hubC,r.dst,r.dep,r.via||null,'out',H.band),
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#out'))||flightNo(hubC,r.dst,r.dep,r.via||null,'out',ac),
       from:hubC, to:r.dst, via:r.via||null,
       depHub:mod(m.depHub), depHubLoc:mod(m.depHub),        // hub local = depHub (hub tz baseline)
       arrSpokeLoc:mod(m.arrDst+tzd),
@@ -161,7 +161,7 @@ function evalPrep(rots,fleet,gates,H,pre){
       local:pr.outLocal||0, connect:pr.outConnect||0, pair:pr.outPair||0, delay:del});
     // return: dst -> (via ->) hub
     flights.push({ri:i, dir:'ret', ac:r.ac, seats,
-      no:(pre.num&&pre.num.get(hubC+'#'+i+'#ret'))||flightNo(hubC,r.dst,r.dep,r.via||null,'ret',H.band),
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#ret'))||flightNo(hubC,r.dst,r.dep,r.via||null,'ret',ac),
       from:r.dst, to:hubC, via:r.via||null,
       depSpokeLoc:mod(m.depDst+tzd), arrHub:mod(m.arrHub),
       hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),

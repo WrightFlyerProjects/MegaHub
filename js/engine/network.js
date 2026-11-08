@@ -29,7 +29,8 @@ function legPlan(r,ac,H){
   /* each hub numbers the flights it owns; the two directions between a hub and a city pair up odd/even */
   legs.forEach(l=>{const o=l.owner, x=o===l.a?l.b:l.a, dir=o===l.a?'out':'ret';
     const outLeg=legs.find(q=>q.a===o&&q.b===x)||l;
-    l.no=flightNo(o,x,mod(outLeg.dep+tzD(o,H)),null,dir,hubBandOf(o,H));});
+    l.no=flightNo(o,x,mod(outLeg.dep+tzD(o,H)),null,dir,ac);
+    l.oldNo=flightNoLegacy(o,x,mod(outLeg.dep+tzD(o,H)),null,dir,hubBandOf(o,H));});
   return legs;
 }
 
@@ -61,7 +62,9 @@ function crossCong(r,ac,H){
    another flight of the same hub holds it — then the later departure takes the next free pair.
    Flights holding a unique number are never moved to make room, so few numbers change.
    Keys: ordinary rotation "HUB#ri#out" / "HUB#ri#ret"; cross-hub leg "HOME#ri#Lk". */
-function numberFlights(list){
+/* the v3.10–3.17 assignment (per-hub bands), kept only so last year's per-flight records in a save
+   written before v3.18 still find their flight. Same keys as numberFlights. */
+function numberFlightsLegacy(list){
   const items={};
   const add=(o,pref,dep,keys,id)=>(items[o]=items[o]||[]).push({pref,dep,keys,id});
   list.forEach(h=>{const H=h.H;
@@ -71,17 +74,43 @@ function numberFlights(list){
           const G=g[k]||(g[k]={o,x,keys:{},pref:null,dep:0});
           G.keys[o===l.a?'out':'ret']=H.c+'#'+ri+'#L'+l.k;
           if(G.pref==null){const ol=L.find(q=>q.a===o&&q.b===x)||l; G.dep=mod(ol.dep+tzD(o,H));
-            G.pref=flightNo(o,x,G.dep,null,'out',hubBandOf(o,H));}});
+            G.pref=flightNoLegacy(o,x,G.dep,null,'out',hubBandOf(o,H));}});
         Object.values(g).forEach(G=>add(G.o,G.pref,G.dep,G.keys,H.c+'#'+ri+'#'+G.x));
-      }else add(H.c,flightNo(H.c,r.dst,r.dep,r.via||null,'out',H.band||0),mod(r.dep),
+      }else add(H.c,flightNoLegacy(H.c,r.dst,r.dep,r.via||null,'out',H.band||0),mod(r.dep),
+                {out:H.c+'#'+ri+'#out',ret:H.c+'#'+ri+'#ret'},H.c+'#'+ri);});});
+  const num=new Map();
+  Object.values(items).forEach(arr=>{
+    arr.sort((a,b)=>a.pref-b.pref||a.dep-b.dep||(a.id<b.id?-1:a.id>b.id?1:0));
+    const used=new Set(), later=[];
+    arr.forEach(it=>{if(used.has(it.pref))later.push(it); else{used.add(it.pref); it.no=it.pref;}});
+    later.forEach(it=>{const b=Math.floor(it.pref/1000), lo=b*1000+101, hi=b*1000+999; let n=it.pref, guard=0;
+      do{n+=2; if(n>hi)n=lo; guard++;}while(used.has(n)&&guard<460);
+      used.add(n); it.no=n;});
+    arr.forEach(it=>{if(it.keys.out)num.set(it.keys.out,it.no); if(it.keys.ret)num.set(it.keys.ret,it.no+1);});
+  });
+  return num;
+}
+function numberFlights(list){
+  const items={};
+  const add=(cat,pref,dep,keys,id)=>(items[cat]=items[cat]||[]).push({cat,pref,dep,keys,id});   // v3.18: one pool per category, airline-wide
+  list.forEach(h=>{const H=h.H;
+    h.rots.forEach((r,ri)=>{const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
+      if(crossHub(r,H)){const L=legPlan(r,ac,H), g={};
+        L.forEach(l=>{const o=l.owner, x=o===l.a?l.b:l.a, k=o+'>'+x;
+          const G=g[k]||(g[k]={o,x,keys:{},pref:null,dep:0});
+          G.keys[o===l.a?'out':'ret']=H.c+'#'+ri+'#L'+l.k;
+          if(G.pref==null){const ol=L.find(q=>q.a===o&&q.b===x)||l; G.dep=mod(ol.dep+tzD(o,H));
+            G.pref=flightNo(o,x,G.dep,null,'out',ac); G.cat=flightCat(ac,o,x);}});
+        Object.values(g).forEach(G=>add(G.cat,G.pref,G.dep,G.keys,H.c+'#'+ri+'#'+G.x));
+      }else add(flightCat(ac,H.c,r.dst),flightNo(H.c,r.dst,r.dep,r.via||null,'out',ac),mod(r.dep),
                 {out:H.c+'#'+ri+'#out',ret:H.c+'#'+ri+'#ret'},H.c+'#'+ri);});});
   const num=new Map();
   Object.values(items).forEach(arr=>{
     arr.sort((a,b)=>a.pref-b.pref||a.dep-b.dep||(a.id<b.id?-1:a.id>b.id?1:0));
     const used=new Set(), later=[];
     arr.forEach(it=>{if(used.has(it.pref))later.push(it); else{used.add(it.pref); it.no=it.pref;}});   // first claim keeps its number
-    later.forEach(it=>{const b=Math.floor(it.pref/1000), lo=b*1000+101, hi=b*1000+999; let n=it.pref, guard=0;
-      do{n+=2; if(n>hi)n=lo; guard++;}while(used.has(n)&&guard<460);
+    later.forEach(it=>{const c=it.cat, lo=firstOdd(c), hi=lo+2*(catPairs(c)-1); let n=it.pref, guard=0;   // next free odd in the category
+      do{n+=2; if(n>hi)n=lo; guard++;}while(used.has(n)&&guard<catPairs(c));
       used.add(n); it.no=n;});
     arr.forEach(it=>{if(it.keys.out)num.set(it.keys.out,it.no); if(it.keys.ret)num.set(it.keys.ret,it.no+1);});
   });

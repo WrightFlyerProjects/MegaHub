@@ -87,8 +87,11 @@ function renderSchedule(E){
   const lastBy={}; if(lastFlt)Object.values(lastFlt).forEach(p=>{const k=p.from+'>'+p.to+'>'+p.ac;(lastBy[k]=lastBy[k]||[]).push(p);});
   const same=(p,f)=>p&&p.from===f.from&&p.to===f.to&&p.ac===f.ac;
   const hashNo=f=>{if(f.visit)return null; const r=rots[f.ri], ac=r&&owned.find(a=>a.id===r.ac); if(!ac)return null;   // the number before v3.10 (older saves use it)
-    return f.leg!=null?legPlan(r,ac,HC)[f.leg].no:flightNo(HC.c,r.dst,r.dep,r.via||null,f.dir,HC.band);};
-  const lastOf=f=>{if(same(lastFlt[f.no],f))return lastFlt[f.no]; const h=hashNo(f); if(h!=null&&same(lastFlt[h],f))return lastFlt[h];
+    return f.leg!=null?legPlan(r,ac,HC)[f.leg].oldNo:flightNoLegacy(HC.c,r.dst,r.dep,r.via||null,f.dir,HC.band);};
+  const v317No=f=>f.visit?null:oldNums().get(HC.c+'#'+f.ri+'#'+(f.leg!=null?'L'+f.leg:f.dir));   // v3.10–3.17 number of this flight
+  const lastOf=f=>{if(same(lastFlt[f.no],f))return lastFlt[f.no];
+    const o=v317No(f); if(o!=null&&same(lastFlt[o],f))return lastFlt[o];
+    const h=hashNo(f); if(h!=null&&same(lastFlt[h],f))return lastFlt[h];
     const q=lastBy[f.from+'>'+f.to+'>'+f.ac]; return q&&q.length===1?q[0]:null;};
   const legs=(E.flights||[]).map(f=>{
     const r=f.visit?{ac:`${f.ac} · ${f.visit}`,turn:0}:rots[f.ri];
@@ -238,8 +241,8 @@ function rotLegs(r,ac,Hh,home,ri){
   if(crossHub(r,Hh))
     return legPlan(r,ac,Hh).map(l=>({flt:numOf(home+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));
   const hc=Hh.c, m=shape(r,ac,Hh).marks;
-  const out=numOf(home+'#'+ri+'#out',flightNo(hc,r.dst,r.dep,r.via||null,'out',Hh.band)),
-        ret=numOf(home+'#'+ri+'#ret',flightNo(hc,r.dst,r.dep,r.via||null,'ret',Hh.band));
+  const out=numOf(home+'#'+ri+'#out',flightNo(hc,r.dst,r.dep,r.via||null,'out',ac)),
+        ret=numOf(home+'#'+ri+'#ret',flightNo(hc,r.dst,r.dep,r.via||null,'ret',ac));
   const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,Hh)),arr:mod(arr+tzD(b,Hh)),ac:tailAt(dep),t:ac.t});
   return r.via
     ?[L(out,hc,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,hc,m.depVia2,m.arrHub)]

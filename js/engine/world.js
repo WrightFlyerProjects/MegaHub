@@ -63,7 +63,24 @@ const mod=t=>((t%DAY)+DAY)%DAY;
    its return gets the next even number (the real-world parent/return convention).
    dir 'out' -> odd, dir 'ret' -> odd+1. The hub argument is per-leg, so this stays
    correct once aircraft fly between multiple hubs. */
-function flightNo(hubC,dst,dep,via,dir,band){
+/* v3.18 flight numbers: airline-wide, by aircraft and distance (no longer by hub). A flight's number
+   is a route hash inside its category's range; outbound odd, return = the next even number.
+   numberFlights() (network.js) resolves collisions. */
+const LONG_HAUL_NM=2000, REGIONAL_SEATS=80;                 // regional = ATR-42, CRJ-200, CRJ-700
+const NO_RANGES={long:[1,499],main:[500,2499],reg:[2500,5999]};
+const flightCat=(ac,o,x)=>ac&&ac.seats<REGIONAL_SEATS?'reg':nm(A[o],A[x])>=LONG_HAUL_NM?'long':'main';
+const firstOdd=c=>NO_RANGES[c][0]%2?NO_RANGES[c][0]:NO_RANGES[c][0]+1;
+const catPairs=c=>Math.floor((NO_RANGES[c][1]-firstOdd(c)-1)/2)+1;          // odd n with n+1 still in range
+function flightNo(o,x,dep,via,dir,ac){
+  let h=7;
+  const key=o+'>'+(via?via+'>':'')+x;
+  for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
+  h+=Math.floor(mod(dep)/30);
+  const c=flightCat(ac,o,x), n=firstOdd(c)+2*(h%catPairs(c));
+  return dir==='ret'?n+1:n;
+}
+/* the v3.10–3.17 number (by hub band): only for matching last year's per-flight records in older saves */
+function flightNoLegacy(hubC,dst,dep,via,dir,band){
   let h=7;
   const key=hubC+'>'+(via?via+'>':'')+dst;
   for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))>>>0;
