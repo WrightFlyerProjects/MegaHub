@@ -4,7 +4,8 @@
    their flight-number band, minimum hub turn, order (rank), and (during evaluation) departure
    pressure. Without H.others every rotation is an ordinary spoke rotation, exactly as before. */
 const isOwnHub=(c,H)=>!!(c&&H&&H.others&&H.others[c]);
-const crossHub=(r,H)=>isOwnHub(r.dst,H)||isOwnHub(r.via,H);
+/* does this trip touch another of your hubs? (classic form: its destination or stop is one) */
+const crossHub=(r,H)=>r.stops?r.stops.some(s=>isOwnHub(s.c,H)):isOwnHub(r.dst,H)||isOwnHub(r.via,H);
 const hubBandOf=(c,H)=>c===H.c?(H.band||0):((H.others[c]&&H.others[c].band)||0);
 /* minimum ground time at a city: a visited hub imposes its own hub turn */
 const turnAt=(c,ac,H)=>isOwnHub(c,H)?Math.max(turnMin(c,ac),H.others[c].mt):turnMin(c,ac);
@@ -20,11 +21,8 @@ function withOthers(Hs,fleets){
    (the hub it departs, else the hub it arrives), and its flight number. A cross-hub rotation's
    legs are separate flights — nobody rides through an intermediate spoke to another hub. */
 function legPlan(r,ac,H){
-  const sh=shape(r,ac,H), m=sh.marks;
-  const T=r.via?[[m.depHub,m.arrVia],[m.depVia,m.arrDst],[m.depDst,m.arrVia2],[m.depVia2,m.arrHub]]
-               :[[m.depHub,m.arrDst],[m.depDst,m.arrHub]];
   const hubAt=c=>c===H.c||isOwnHub(c,H);
-  const legs=sh.legs.map((l,k)=>({k,a:l.a,b:l.b,t:l.t,dep:T[k][0],arr:T[k][1],aHub:hubAt(l.a),bHub:hubAt(l.b)}));
+  const legs=tripOf(r,ac,H).legs.map(l=>({k:l.k,a:l.a,b:l.b,t:l.t,dep:l.dep,arr:l.arr,aHub:hubAt(l.a),bHub:hubAt(l.b)}));
   legs.forEach(l=>{l.owner=l.aHub?l.a:l.b;});
   /* each hub numbers the flights it owns; the two directions between a hub and a city pair up odd/even */
   legs.forEach(l=>{const o=l.owner, x=o===l.a?l.b:l.a, dir=o===l.a?'out':'ret';
@@ -76,7 +74,7 @@ function numberFlightsLegacy(list){
           if(G.pref==null){const ol=L.find(q=>q.a===o&&q.b===x)||l; G.dep=mod(ol.dep+tzD(o,H));
             G.pref=flightNoLegacy(o,x,G.dep,null,'out',hubBandOf(o,H));}});
         Object.values(g).forEach(G=>add(G.o,G.pref,G.dep,G.keys,H.c+'#'+ri+'#'+G.x));
-      }else add(H.c,flightNoLegacy(H.c,r.dst,r.dep,r.via||null,'out',H.band||0),mod(r.dep),
+      }else add(H.c,flightNoLegacy(H.c,rotDst(r),r.dep,r.via||null,'out',H.band||0),mod(r.dep),
                 {out:H.c+'#'+ri+'#out',ret:H.c+'#'+ri+'#ret'},H.c+'#'+ri);});});
   const num=new Map();
   Object.values(items).forEach(arr=>{
@@ -102,8 +100,8 @@ function numberFlights(list){
           if(G.pref==null){const ol=L.find(q=>q.a===o&&q.b===x)||l; G.dep=mod(ol.dep+tzD(o,H));
             G.pref=flightNo(o,x,G.dep,null,'out',ac); G.cat=flightCat(ac,o,x);}});
         Object.values(g).forEach(G=>add(G.cat,G.pref,G.dep,G.keys,H.c+'#'+ri+'#'+G.x));
-      }else add(flightCat(ac,H.c,r.dst),flightNo(H.c,r.dst,r.dep,r.via||null,'out',ac),mod(r.dep),
-                {out:H.c+'#'+ri+'#out',ret:H.c+'#'+ri+'#ret'},H.c+'#'+ri);});});
+      }else{const T=tripOf(r,ac,H); add(flightCat(ac,H.c,T.dst),flightNo(H.c,T.dst,r.dep,tripVia(T),'out',ac),mod(r.dep),
+                {out:H.c+'#'+ri+'#out',ret:H.c+'#'+ri+'#ret'},H.c+'#'+ri);}});});
   const num=new Map();
   Object.values(items).forEach(arr=>{
     arr.sort((a,b)=>a.pref-b.pref||a.dep-b.dep||(a.id<b.id?-1:a.id>b.id?1:0));

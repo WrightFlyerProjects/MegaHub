@@ -13,20 +13,21 @@ function productsOf(rots,fleet,H,capsPre){
         if(l.a===H.c)out.push({ri,k:l.k,dir:'out',spoke:l.b,legs:[caps[l.k]],depHub:mod(l.dep),depHubLoc:mod(l.dep+hubTz),destLocal:mod(l.arr+tzD(l.b,H)),block:l.t,mult:1});
         if(l.b===H.c)inn.push({ri,k:l.k,dir:'ret',spoke:l.a,legs:[caps[l.k]],arrHub:mod(l.arr),arrHubLoc:mod(l.arr+hubTz),origLocal:mod(l.dep+tzD(l.a,H)),block:l.t,mult:1});});
       return;}
-    if(!r.via){
-      const bl=sh.legs[0].t;
-      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst,H)),block:bl,mult:1});
-      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst,H)),block:sh.legs[1].t,mult:1});
-    }else{
-      const tm=thruMult(r.via,r.dst,H);
-      const b1=sh.legs[0].t,b2=sh.legs[1].t,b3=sh.legs[2].t,b4=sh.legs[3].t;
-      out.push({ri,dir:'out',spoke:r.via,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrVia+tzD(r.via,H)),block:b1,mult:1});
-      out.push({ri,dir:'out',spoke:r.dst,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(m.arrDst+tzD(r.dst,H)),block:b1+b2,mult:tm});
-      inn.push({ri,dir:'ret',spoke:r.via,legs:[caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depVia2+tzD(r.via,H)),block:b4,mult:1});
-      inn.push({ri,dir:'ret',spoke:r.dst,legs:[caps[2],caps[3]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(m.depDst+tzD(r.dst,H)),block:b3+b4,mult:tm});
-      pairs.push({ri,i:r.via,j:r.dst,legs:[caps[1]],depLocal:mod(m.depVia+tzD(r.via,H)),arrLocal:mod(m.arrDst+tzD(r.dst,H))});
-      pairs.push({ri,i:r.dst,j:r.via,legs:[caps[2]],depLocal:mod(m.depDst+tzD(r.dst,H)),arrLocal:mod(m.arrVia2+tzD(r.via,H))});
-    }
+    /* a trip that returns to this hub without touching another: sold from its stops (v3.19).
+       out: hub → first stop, and through to the next stop when the aircraft continues (a via stop);
+       in: last stop → hub, and through from the stop before; pairs: every leg between two spokes. */
+    const T=sh.trip, L=T.legs, st=T.stops, n=L.length, tz=c=>tzD(c,H);
+    const o0=L[0], s0=st[0];
+    out.push({ri,dir:'out',spoke:o0.b,legs:[caps[0]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(o0.arr+tz(o0.b)),block:o0.t,mult:1});
+    const thruOut=s0.thru&&n>2, thruIn=n>2&&st[n-2].thru;
+    if(thruOut){const o1=L[1];
+      out.push({ri,dir:'out',spoke:o1.b,legs:[caps[0],caps[1]],depHub:m.depHub,depHubLoc:mod(m.depHub+hubTz),destLocal:mod(o1.arr+tz(o1.b)),block:o0.t+o1.t,mult:thruMult(o0.b,o1.b,H)});}
+    const i1=L[n-1];
+    inn.push({ri,dir:'ret',spoke:i1.a,legs:[caps[n-1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(i1.dep+tz(i1.a)),block:i1.t,mult:1});
+    if(thruIn){const i0=L[n-2];
+      inn.push({ri,dir:'ret',spoke:i0.a,legs:[caps[n-2],caps[n-1]],arrHub:m.arrHub,arrHubLoc:mod(m.arrHub+hubTz),origLocal:mod(i0.dep+tz(i0.a)),block:i0.t+i1.t,mult:thruMult(i1.a,i0.a,H)});}
+    for(let k=1;k<n-1;k++){const l=L[k];
+      pairs.push({ri,i:l.a,j:l.b,legs:[caps[k]],depLocal:mod(l.dep+tz(l.a)),arrLocal:mod(l.arr+tz(l.b))});}
   });
   return {out,inn,pairs,rotCaps};
 }
@@ -148,21 +149,20 @@ function evalPrep(rots,fleet,gates,H,pre){
           hubTime:mod(dep?l.dep:l.arr),spokeTime:mod(dep?l.arr+tzD(l.b,H):l.dep+tzD(l.a,H)),
           local:L.local||0,connect:L.connect||0,pair:0,delay:del});});
       return;}
-    const m=shape(r,ac,H).marks, pr=perRot[i]||{};
-    const tzd=tzD(r.dst,H), hubC=H.c, seats=ac.seats, del=Math.round(delays[i]||0);
-    const outSpoke=r.via||r.dst, retSpoke=r.via||r.dst;
+    const sh=shape(r,ac,H), m=sh.marks, pr=perRot[i]||{}, T=sh.trip, dst=T.dst, via=tripVia(T);
+    const tzd=tzD(dst,H), hubC=H.c, seats=ac.seats, del=Math.round(delays[i]||0);
     // outbound: hub -> (via ->) dst
     flights.push({ri:i, dir:'out', ac:r.ac, seats,
-      no:(pre.num&&pre.num.get(hubC+'#'+i+'#out'))||flightNo(hubC,r.dst,r.dep,r.via||null,'out',ac),
-      from:hubC, to:r.dst, via:r.via||null,
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#out'))||flightNo(hubC,dst,r.dep,via,'out',ac),
+      from:hubC, to:dst, via,
       depHub:mod(m.depHub), depHubLoc:mod(m.depHub),        // hub local = depHub (hub tz baseline)
       arrSpokeLoc:mod(m.arrDst+tzd),
       hubTime:mod(m.depHub), spokeTime:mod(m.arrDst+tzd),
       local:pr.outLocal||0, connect:pr.outConnect||0, pair:pr.outPair||0, delay:del});
     // return: dst -> (via ->) hub
     flights.push({ri:i, dir:'ret', ac:r.ac, seats,
-      no:(pre.num&&pre.num.get(hubC+'#'+i+'#ret'))||flightNo(hubC,r.dst,r.dep,r.via||null,'ret',ac),
-      from:r.dst, to:hubC, via:r.via||null,
+      no:(pre.num&&pre.num.get(hubC+'#'+i+'#ret'))||flightNo(hubC,dst,r.dep,via,'ret',ac),
+      from:dst, to:hubC, via,
       depSpokeLoc:mod(m.depDst+tzd), arrHub:mod(m.arrHub),
       hubTime:mod(m.arrHub), spokeTime:mod(m.depDst+tzd),
       local:pr.retLocal||0, connect:pr.retConnect||0, pair:pr.retPair||0, delay:del});
@@ -173,8 +173,8 @@ function evalPrep(rots,fleet,gates,H,pre){
   rotCaps.forEach((caps,ri)=>caps.forEach((c,k)=>legs.push({ri,k,a:c.a,b:c.b,t:c.t,seats:c.seats,
     pax:c.seats-c.left,nm:nm(A[c.a],A[c.b])})));
   return {pm,netPm,lf,emptyMi,pax,peak,seatMi,cur,flows,pairRows,perRot,flights,delays,otp,legs,
-    rons:rots.filter(r=>r.turn>240).length,
-    vias:rots.filter(r=>r.via).length,
+    rons:rots.filter(r=>{const ac=fleet.find(x=>x.id===r.ac); return ac&&tripStops(r,ac,H).some((s,k,a)=>k<a.length-1&&!s.thru&&s.g>240);}).length,
+    vias:rots.filter(r=>{const ac=fleet.find(x=>x.id===r.ac); return ac&&tripStops(r,ac,H).some(s=>s.thru);}).length,
     markets:Object.values(mk).sort((a,b)=>b.pax-a.pax),
     local:local.sort((a,b)=>b.pax-a.pax)};
   }};

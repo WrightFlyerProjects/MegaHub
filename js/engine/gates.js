@@ -45,7 +45,7 @@ function groundIntervals(rots,fleet){
     if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap<=0)return;
         const tail=dayTail(o.arr,a.id,a.pair);
         iv.push({ac:tail,acAfter:tail===a.id?a.pair:a.id,type:a.t,start:Math.round(mod(o.arr)),len:Math.round(o.gap),
-                 from:o.r.dst,to:o.next.r.dst,last:o.r.via||o.r.dst});});
+                 from:rotDst(o.r),to:rotDst(o.next.r),last:lastStop(o.r)});});
       return;}
     const rs=acRots(rots,a.id);if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
@@ -53,7 +53,7 @@ function groundIntervals(rots,fleet){
       let gap=rs.length===1?DAY-rs[i].dur:mod(nxt-arr);
       if(gap<=0)gap=DAY;
       iv.push({ac:a.id,type:a.t,start:Math.round(mod(arr)),len:Math.round(gap),
-               from:rs[i].dst,to:rs[(i+1)%rs.length].dst,last:rs[i].via||rs[i].dst});}});
+               from:rotDst(rs[i]),to:rotDst(rs[(i+1)%rs.length]),last:lastStop(rs[i])});}});
   return iv;
 }
 /* assign each ground interval to the lowest-numbered free stand */
