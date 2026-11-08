@@ -104,7 +104,7 @@ function renderMarketsTab(E){
     conn=!ms?`<div class="empty">Connecting traffic hidden until you launch.</div>`
       :!ms.length?`<div class="empty">No connecting traffic through ${HUB.c} yet.</div>`
       :`<div class="${sc}"><table><tr><th>Market</th><th>Pax</th><th>Itin</th><th>Conn</th><th>Detour</th></tr>`
-        +ms.slice(0,14).map(m=>`<tr class="clik" data-mcity="${m.i===c?m.j:m.i}"><td>${m.i}→${m.j}${m.dbl?` <span class="flag f-line" title="double connection via ${m.via.join(' and ')}">2 hubs</span>`:''}</td><td>${Math.round(m.pax)}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td></tr>`).join('')
+        +ms.slice(0,14).map(m=>`<tr class="clik" data-mcity="${m.i===c?m.j:m.i}"><td>${m.i}→${m.j}${m.dbl?` <span class="flag f-line" title="double connection via ${m.via.join(' and ')}">2 hubs</span>`:''}${m.ret?` <span class="flag f-line" title="${m.ret===RET_NONE?`No way back from ${m.j} to ${m.i} on your airline — most travelers buy round trips, so only about ${Math.round(RET_NONE*100)}% of this market books one-way. Retime a bank so the return connection works.`:`The way back from ${m.j} to ${m.i} is worse than this itinerary — about ${Math.round((1-RET_PART)*100)}% of travelers go elsewhere.`}">${m.ret===RET_NONE?'no return':'weak return'}</span>`:''}</td><td>${Math.round(m.pax)}</td><td>${m.n}</td><td>${Math.round(m.ct)}m</td><td>${m.r.toFixed(2)}×</td></tr>`).join('')
         +`</table>${ms.length>14?`<div class="note">+ ${ms.length-14} more markets</div>`:''}</div>`;
   }else{
     const pot=[...served].map(x=>({x,p:connPot(c,x)+connPot(x,c)})).filter(o=>o.p>=1).sort((a,b)=>b.p-a.p);

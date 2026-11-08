@@ -27,12 +27,13 @@ function gateCurve(rots,fleet){
   const cur=new Array(DAY).fill(0);
   fleet.forEach(a=>{
     if(a.visitIv){a.visitIv.forEach(v=>addArc(cur,v.start,v.len));return;}      // visiting aircraft from another hub
-    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap>0)addArc(cur,o.arr,o.gap);});return;}
+    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap>0&&!awayEnd(o.r))addArc(cur,o.arr,o.gap);});return;}
     const rs=acRots(rots,a.id);if(!rs.length)return;
     for(let i=0;i<rs.length;i++){
       const arr=rs[i].arr,nxt=rs[(i+1)%rs.length].dep;
       let gap=rs.length===1?DAY-rs[i].dur:mod(nxt-arr);
       if(gap<=0)gap=DAY;
+      if(awayEnd(rs[i]))continue;                    // v3.20: on the ground at the hub this trip ended at
       addArc(cur,arr,gap);}});
   return cur;
 }
@@ -42,7 +43,7 @@ function groundIntervals(rots,fleet){
   const iv=[];
   fleet.forEach(a=>{
     if(a.visitIv){a.visitIv.forEach(v=>iv.push({ac:a.id,type:a.t,start:v.start,len:v.len,from:v.from,to:v.to,last:v.last,visit:a.visit}));return;}
-    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap<=0)return;
+    if(a.pair){if(isLead(a))lineItems(rots,a.id,a.pair).forEach(o=>{if(o.gap<=0||awayEnd(o.r))return;
         const tail=dayTail(o.arr,a.id,a.pair);
         iv.push({ac:tail,acAfter:tail===a.id?a.pair:a.id,type:a.t,start:Math.round(mod(o.arr)),len:Math.round(o.gap),
                  from:rotDst(o.r),to:rotDst(o.next.r),last:lastStop(o.r)});});
@@ -52,6 +53,7 @@ function groundIntervals(rots,fleet){
       const arr=rs[i].arr,nxt=rs[(i+1)%rs.length].dep;
       let gap=rs.length===1?DAY-rs[i].dur:mod(nxt-arr);
       if(gap<=0)gap=DAY;
+      if(awayEnd(rs[i]))continue;
       iv.push({ac:a.id,type:a.t,start:Math.round(mod(arr)),len:Math.round(gap),
                from:rotDst(rs[i]),to:rotDst(rs[(i+1)%rs.length]),last:lastStop(rs[i])});}});
   return iv;

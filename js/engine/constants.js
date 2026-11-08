@@ -1,6 +1,11 @@
 /* MegaHub · js/engine/constants.js — tuning constants: day length, MCT, load factor, delay model, turn minimums, block-time allowances */
 /* MegaHub engine v2.0 — retuned demand, flight numbers, start year, extended timeline, sell aircraft, more intl. No DOM. */
-const DBL_PEN=0.15, DBL_GAP=360;   // double connections: appeal multiplier (most travelers avoid them); offered only if nothing simpler leaves within DBL_GAP minutes
+const DBL_PEN=0.15, DBL_GAP=360;
+/* v3.20 return itineraries: most tickets are round trips, so each direction of a market is judged by
+   what you offer back (nonstop > one-stop > two-stop > nothing). Return as good: full demand; worse
+   but something: RET_PART; no way back at all: RET_NONE. */
+const RETURN_RULE=true, RET_PART=0.85, RET_NONE=0.25;
+const PAIR_SHARE=true;            // v3.20: your spoke-to-spoke nonstop draws from the same city-pair pool as your connections   // double connections: appeal multiplier (most travelers avoid them); offered only if nothing simpler leaves within DBL_GAP minutes
 const CONN_FLOOR=0.10;   // share of a city pair's demand that connects even when competitors fly it nonstop
 const DAY=1440, MCT_BASE=30, MAXCT=300, LF=0.72, TAXI=18, ALPHA=1.5, HALF_CONN=1.6, HALF_PAIR=2.0;
 const GATE_COST=8, MIN_GATES=1, MAX_GATES=30, VIA_TURN=40, THRU_TAX=0.85, MIN_STAGE=75;

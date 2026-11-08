@@ -14,10 +14,12 @@ function validateTrip(rots,fleet,cand,skipIdx,H,noLimits){
   const ac=fleet.find(a=>a.id===cand.ac);
   if(!ac)return 'Pick an aircraft';
   const dep=cand.dep;
-  if(cand.stops){const st=cand.stops, end=st[st.length-1].c;
-    if(st.length<2)return 'A trip needs at least one stop before it returns to a hub';
+  if(cand.stops){const st=cand.stops, end=st[st.length-1].c, from=cand.from||H.c;
+    if(from!==H.c&&!isOwnHub(from,H))return `A trip must start at one of your hubs — ${from} isn't`;
+    if(st.length<2&&!(isOwnHub(st[0].c,H)||st[0].c===H.c&&from!==H.c))return 'A trip needs at least one stop before it returns to a hub';
     if(end!==H.c&&!isOwnHub(end,H))return `A trip must end at one of your hubs — ${end} isn't`;
-    for(let k=0;k<st.length-1;k++){ if(st[k].c===(k?st[k-1].c:H.c))return `${st[k].c} twice in a row`;
+    for(let k=0;k<st.length-1;k++){ if(st[k].c===(k?st[k-1].c:from))return `${st[k].c} twice in a row`;
+      if(st[k].c===H.c)return `A trip can't pass through its own home hub (${H.c}) — end it there and start a new one`;
       if(st[k].thru&&(k===st.length-2||isOwnHub(st[k].c,H)||st[k].c===H.c))return `A through stop must be a city with more flying after it — not ${st[k].c}`;}}
   const sh=shape(cand,ac,H);
   for(const L of sh.legs){
@@ -76,7 +78,7 @@ function hubDepPressure(rots,extra){
   /* departures within a +/-15-min window centred on each minute (this airline alone).
      A flight caught in a crowded bank is delayed whether it is early or late in the rush. */
   const dep=new Array(DAY).fill(0);
-  rots.forEach(r=>{dep[Math.round(mod(r.dep))%DAY]++;});
+  rots.forEach(r=>{if(r.from)return; dep[Math.round(mod(r.dep))%DAY]++;});   // a trip starting at another hub counts there (crossPrep)
   (extra||[]).forEach(t=>{dep[Math.round(mod(t))%DAY]++;});        // visiting aircraft departing this hub
   const win=new Array(DAY).fill(0);
   for(let t=0;t<DAY;t++){let c=0; for(let k=-15;k<=15;k++)c+=dep[mod(t+k)]; win[t]=c;}
@@ -100,6 +102,7 @@ function legExpDelay(a,b,pressure){
    shows even when a long turn later recovers it. Same arithmetic order as the classic shapes. */
 function tripDelay(d,r,a,H,p){
   const T=tripOf(r,a,H), L=T.legs, st=T.stops, n=L.length, pad=r.pad||0, cx=crossCong(r,a,H);
+  if(r.from&&r.from!==H.c)p=0;                            // its first departure is from another hub's bank (crossCong)
   let k=0;
   d+=legExpDelay(L[0].a,L[0].b,p); d=Math.max(0,d-pad);
   while(k<n-1&&st[k].thru){k++; d+=legExpDelay(L[k].a,L[k].b,0);}
@@ -161,6 +164,30 @@ const pMake=slack=>1/(1+Math.exp(-(slack+8)/6));
 
 /* Every rotation must still be legal after the fleet changes.
    Buying a third aircraft type lengthens the hub turn and can strand old rotations. */
+/* v3.20 — the shape of each aircraft's day: every trip leaves from where the previous one ended (on a
+   single aircraft that wraps around the day; on a 2-day line it runs across the hand-off between the two
+   tails), and a 2-day line touches a hub every calendar day (home-hub midnight to midnight). */
+function lineViolations(rots,fleet,H){
+  const v=[], startOf=r=>r.from||H.c, endOf=r=>awayEnd(r)||H.c;
+  const touch=(o,A,B)=>{                            // a trip covering a whole calendar day away from every hub
+    const ac=fleet.find(a=>a.id===o.r.ac); if(!ac||o.r.dur<=DAY)return;
+    const hubAt=c=>c===H.c||isOwnHub(c,H), legs=legPlan(o.r,ac,H), base=o.dep-o.r.dep, ts=[o.dep];
+    legs.forEach((l,k)=>{if(k<legs.length-1&&hubAt(l.b))ts.push(base+l.arr,base+legs[k+1].dep);}); ts.push(o.arr);
+    for(let k=0;k+1<ts.length;k++){const d0=Math.ceil(ts[k]/DAY)*DAY; if(ts[k+1]>=d0+DAY)
+      return v.push({kind:'line',idx:o.i,ac:dayTail(d0,A,B),dst:rotDst(o.r),msg:`${o.r.ac==A?A:B}'s trip spends a whole day away from your hubs — every aircraft must touch a hub daily`});}};
+  fleet.forEach(a=>{ if(a.visitIv)return;
+    if(a.pair){if(!isLead(a))return; const it=lineItems(rots,a.id,a.pair);
+      it.forEach(o=>{ if(it.length&&endOf(o.r)!==startOf(o.next.r))
+          v.push({kind:'line',idx:o.i,ac:o.r.ac,dst:rotDst(o.r),msg:`${o.r.ac} ends a trip at ${endOf(o.r)} but ${o.next.r.ac===o.r.ac?'its':o.next.r.ac+"'s"} next trip leaves from ${startOf(o.next.r)}`});
+        touch(o,a.id,a.pair);});
+      return;}
+    const rs=acRots(rots,a.id);
+    rs.forEach((r,i)=>{const nx=rs[(i+1)%rs.length]; if(endOf(r)!==startOf(nx))
+      v.push({kind:'line',idx:rots.indexOf(r),ac:a.id,dst:rotDst(r),msg:rs.length===1||i===rs.length-1
+        ?`${a.id}'s day ends at ${endOf(r)} but starts at ${startOf(nx)} — fly it back, or pair it on a 2-day line`
+        :`${a.id} ends a trip at ${endOf(r)} but its next trip leaves from ${startOf(nx)}`});});});
+  return v;
+}
 function scheduleViolations(rots,fleet,gates,tiers,H){          // H given → airport limits are checked too (v3.17)
   const v=[], mt=minTurnHub(fleet);
   fleet.forEach(a=>{
@@ -178,6 +205,7 @@ function scheduleViolations(rots,fleet,gates,tiers,H){          // H given → a
   const peak=rots.length?Math.max(...gateCurve(rots,fleet)):0;
   if(peak>gates) v.push({kind:'gates',peak,gates});
   tierViolations(rots,fleet,tiers).forEach(x=>v.push(x));
+  if(H)lineViolations(rots,fleet,H).forEach(x=>v.push(x));          // v3.20: trips connect, days close, hubs touched daily
   if(H){rots.forEach((r,i)=>{const ac=fleet.find(a=>a.id===r.ac); if(!ac)return; const msg=limitErr(r,ac,H);
       if(msg)v.push({kind:'limit',idx:i,ac:r.ac,dst:rotDst(r),via:r.via||null,msg});});
     dcaOverflow(rots,fleet,H).forEach(i=>{if(!v.some(x=>x.kind==='limit'&&x.idx===i))

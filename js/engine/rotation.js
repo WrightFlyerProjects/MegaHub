@@ -26,7 +26,7 @@ const tripVia=T=>T.stops[0].thru?T.stops[0].c:null;   // the stop the outbound f
 const tripDst=st=>{for(let k=st.length-2;k>=0;k--)if(!st[k].thru)return st[k].c; return st[st.length-1].c;};
 function tripOf(r,ac,H){
   const st=tripStops(r,ac,H), pad=r.pad||0, n=st.length, legs=[];
-  let t=r.dep, at=H.c;
+  let t=r.dep, at=r.from||H.c;                           // v3.20: a trip may start at another of your hubs
   for(let k=0;k<n;k++){
     const blk=legBlock(at,st[k].c,ac)+(k===0||k===n-1?pad:0);   // padding sits on the two hub legs
     const arr=t+blk;
@@ -54,4 +54,21 @@ function shape(r,ac,H){
 const rotDur=(r,ac,H)=>shape(r,ac,H).dur;
 /* labels that need no hub context: the trip's destination and the last stop before it gets home */
 const rotDst=r=>r.stops?tripDst(r.stops):r.dst;
-const lastStop=r=>r.stops?r.stops[r.stops.length-2].c:(r.via||r.dst);
+/* v3.20 — where a trip starts and ends: null = the aircraft's home hub (every classic rotation) */
+const tripFrom=r=>r.from||null;
+const tripEndAt=(r,home)=>{if(!r.stops)return null; const e=r.stops[r.stops.length-1].c; return e===home?null:e;};
+const awayEnd=r=>r.endAt||null;                      // derived, stored on the rotation by tripMeta()
+/* the flights of a trip: legs joined through "thru" stops form one flight; every other stop ends one */
+function tripSegs(T){const segs=[]; let cur=[];
+  T.legs.forEach((l,k)=>{cur.push(k); if(k===T.legs.length-1||!T.stops[k].thru){segs.push(cur); cur=[];}});
+  return segs;}
+/* a trip that starts and ends at the same hub with no other hub in between: that hub; else null */
+function loopHub(r,H){const from=r.from||H.c, st=r.stops||null;
+  if(!st)return isOwnHub(r.dst,H)||isOwnHub(r.via,H)?null:H.c;
+  if(st[st.length-1].c!==from)return null;
+  for(let k=0;k<st.length-1;k++)if(st[k].c===H.c||isOwnHub(st[k].c,H))return null;
+  return from;}
+/* derived fields every rotation carries: b (first block), dur, arr (hub clock), endAt (hub it ends at, if not home) */
+function tripMeta(r,ac,H){const sh=shape(r,ac,H); r.b=sh.legs[0].t; r.dur=sh.dur; r.arr=mod(r.dep+sh.dur);
+  const e=tripEndAt(r,H.c); if(e)r.endAt=e; else delete r.endAt; return r;}
+const lastStop=r=>r.stops?(r.stops.length>1?r.stops[r.stops.length-2].c:(r.from||null)):(r.via||r.dst);   // a one-leg hub-to-hub trip came from where it started
