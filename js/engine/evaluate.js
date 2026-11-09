@@ -59,7 +59,7 @@ function loopFlights(T,X,Hh,r,ac,i,pr,del,num,keyBase,extra){
   const segs=tripSegs(T), tz=tzD(X,Hh), S=(pr&&pr.segs)||[];
   return segs.map((g,j)=>{const a=T.legs[g[0]], z=T.legs[g[g.length-1]], dir=j===0?'out':j===segs.length-1?'ret':'mid', q=S[j]||{};
     return {...(extra||{}),ri:i,dir,seg:j,ac:r.ac,seats:ac.seats,no:(num&&num.get(keyBase+segKey(j,segs.length)))||flightNo(a.a,z.b,mod(a.dep+tzD(a.a,Hh)),g.length>1?a.b:null,'out',ac),
-      from:a.a,to:z.b,via:g.length>1?a.b:null,
+      from:a.a,to:z.b,via:g.length>1?a.b:null,depLoc:mod(a.dep+tzD(a.a,Hh)),arrLoc:mod(z.arr+tzD(z.b,Hh)),
       hubTime:mod((dir==='ret'?z.arr:a.dep)+tz),spokeTime:dir==='ret'?mod(a.dep+tzD(a.a,Hh)):mod(z.arr+tzD(z.b,Hh)),
       local:q.local||0,connect:q.connect||0,pair:q.pair||0,delay:Math.round(del||0)};});
 }
@@ -235,6 +235,7 @@ function evaluateMulti(list){
   /* v3.20: every hub's offer is known before anyone books, so each direction can be judged by its return */
   const ret=RETURN_RULE?returnOffers(S,dbl):null, used={};
   S.forEach(s=>s.book(ret,PAIR_SHARE?used:null));
+  evaluateMulti.lastLevels=ret?ret.level:null;          // v3.21: read by the schedule editor (way-back chips)
   const all=[]; S.forEach((st,h)=>st.cands.forEach(c=>all.push({c,h})));
   if(ret){all.forEach(({c})=>{const f=ret(c.i,c.j,2); if(f<1)c.v*=f;}); dbl.forEach(c=>{const f=ret(c.i,c.j,1); if(f<1)c.v*=f;});}
   const nItin={}; all.forEach(({c})=>nItin[c.i+c.j]=(nItin[c.i+c.j]||0)+1);

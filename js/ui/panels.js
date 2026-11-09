@@ -74,10 +74,8 @@ function renderFleetPanel(){
    fly every leg the old tail currently operates (range/ocean) — otherwise routes would strand. */
 function legsOfAircraft(id){
   const legs=[];
-  acRots(rots,id).forEach(r=>{
-    (r.via?[[HUB.c,r.via],[r.via,r.dst],[r.dst,r.via],[r.via,HUB.c]]:[[HUB.c,r.dst],[r.dst,HUB.c]])
-      .forEach(([a,b])=>legs.push([a,b]));
-  });
+  const ac=owned.find(a=>a.id===id); if(!ac)return legs;
+  acRots(rots,id).forEach(r=>tripOf(r,ac,HC).legs.forEach(l=>legs.push([l.a,l.b])));   // any trip shape (v3.21)
   return legs;
 }
 function typeCanFly(cat,legs){
@@ -120,7 +118,7 @@ function doReplace(id,newType){
   owned[idx]={id, ...cat};
   // rebuild this aircraft's rotations so block time, duration and arrival reflect the
   // new type's speed (otherwise the schedule keeps the old aircraft's timing)
-  rots.forEach((r,i)=>{ if(r.ac===id) rots[i]=mkRot(id,r.dst,r.via||null,r.dep,r.turn,r.pad||0); });
+  rots.forEach((r,i)=>{ if(r.ac===id) rots[i]=remkRot(r); });
   points-=net; logPts(`replaced ${id} (${old.t} → ${newType})`,-net);
   launched=false;                                    // fleet changed -> re-launch
   replOpen=null;
@@ -142,7 +140,7 @@ function moveTargets(editIdx){
 }
 function renderMoveRow(){
   const row=$('moverow'); if(!row)return;
-  if(editIdx===null||!rots[editIdx]){row.style.display='none';row.innerHTML='';return;}
+  if(editIdx===null||!rots[editIdx]||rots[editIdx].stops){row.style.display='none';row.innerHTML='';return;}   // leg-built trips move leg by leg
   const r=rots[editIdx];
   const targets=moveTargets(editIdx).filter(t=>t.ok);
   row.style.display='block';
@@ -221,7 +219,7 @@ function renderStats(E){
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
   const viol=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers,HC);
   if(viol.length){
-    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier'), lims=viol.filter(v=>v.kind==='limit');
+    const turns=viol.filter(v=>v.kind==='turn'), gate=viol.find(v=>v.kind==='gates'), tiers=viol.filter(v=>v.kind==='gatetier'), lims=viol.filter(v=>v.kind==='limit'), lines=viol.filter(v=>v.kind==='line');
     $('viol').style.display='block';
     $('viol').innerHTML=`<h2 style="border-color:rgba(178,58,58,.3);color:var(--red)">Schedule no longer legal</h2>`
       +(turns.length?`<div class="rowv" style="margin-bottom:6px"><span>${turns.length} rotation${turns.length>1?'s':''} break the ${minTurnHub(owned)}-minute hub turn</span></div>`
@@ -235,6 +233,9 @@ function renderStats(E){
         +`<table>${lims.slice(0,8).map(v=>`<tr class="clik" data-editrot="${v.idx}"><td style="white-space:nowrap">${v.ac} → ${v.via?v.via+'–':''}${v.dst}</td><td style="text-align:left;color:var(--red)">${v.msg}</td></tr>`).join('')}</table>`
         +(lims.length>8?`<div class="note">…and ${lims.length-8} more.</div>`:'')
         +`<div class="note">Click a rotation to edit it: change the aircraft, retime it, or remove it.</div>`:'')
+      +(lines.length?`<div class="rowv" style="margin-top:6px"><span>${lines.length} aircraft day${lines.length>1?'s don\'t':' doesn\'t'} close</span></div>`
+        +`<table>${lines.slice(0,6).map(v=>`<tr class="clik" data-editrot="${v.idx}"><td style="white-space:nowrap">${v.ac}</td><td style="text-align:left;color:var(--red)">${v.msg}</td></tr>`).join('')}</table>`
+        +`<div class="note">Click one to open that aircraft's day — the panel above the board suggests how to close it.</div>`:'')
       +(turns.length?`<button id="autofix">Nudge departures later</button>`:'');
     if(turns.length)$('autofix').onclick=()=>{
       const r=repairSchedule(rots,owned,gatesOwned,gateTiers);

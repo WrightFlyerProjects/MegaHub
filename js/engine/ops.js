@@ -10,14 +10,14 @@ function validate(rots,fleet,gates,acId,dst,dep,turn,via,skipIdx,pad,H,noLimits)
 }
 /* any trip, classic or general (v3.19): legs, airport limits, ground time at every stop, and fit
    in the aircraft's day (or its 2-day line). cand = a rotation object. */
-function validateTrip(rots,fleet,cand,skipIdx,H,noLimits){
+function validateTrip(rots,fleet,cand,skipIdx,H,noLimits,draft){   // draft (v3.21): a trip of an unfinished day may start or end at a spoke
   const ac=fleet.find(a=>a.id===cand.ac);
   if(!ac)return 'Pick an aircraft';
   const dep=cand.dep;
   if(cand.stops){const st=cand.stops, end=st[st.length-1].c, from=cand.from||H.c;
-    if(from!==H.c&&!isOwnHub(from,H))return `A trip must start at one of your hubs — ${from} isn't`;
-    if(st.length<2&&!(isOwnHub(st[0].c,H)||st[0].c===H.c&&from!==H.c))return 'A trip needs at least one stop before it returns to a hub';
-    if(end!==H.c&&!isOwnHub(end,H))return `A trip must end at one of your hubs — ${end} isn't`;
+    if(!draft&&from!==H.c&&!isOwnHub(from,H))return `A trip must start at one of your hubs — ${from} isn't`;
+    if(!draft&&st.length<2&&!(isOwnHub(st[0].c,H)||st[0].c===H.c&&from!==H.c))return 'A trip needs at least one stop before it returns to a hub';
+    if(!draft&&end!==H.c&&!isOwnHub(end,H))return `A trip must end at one of your hubs — ${end} isn't`;
     for(let k=0;k<st.length-1;k++){ if(st[k].c===(k?st[k-1].c:from))return `${st[k].c} twice in a row`;
       if(st[k].c===H.c)return `A trip can't pass through its own home hub (${H.c}) — end it there and start a new one`;
       if(st[k].thru&&(k===st.length-2||isOwnHub(st[k].c,H)||st[k].c===H.c))return `A through stop must be a city with more flying after it — not ${st[k].c}`;}}

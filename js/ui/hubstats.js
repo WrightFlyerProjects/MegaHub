@@ -7,7 +7,8 @@ function fltNos(E){const m={};(E.flights||[]).forEach(f=>{(m[f.ri]=m[f.ri]||{})[
 function delayCauses(r,i,E,press){
   const p=press[Math.round(mod(r.dep))%DAY];
   const bank=DLY_CONGEST*Math.max(0,p-DLY_CONGEST_FREE);
-  const legs=r.via?[[HUB.c,r.via],[r.via,r.dst],[r.dst,r.via],[r.via,HUB.c]]:[[HUB.c,r.dst],[r.dst,HUB.c]];
+  const ac=owned.find(a=>a.id===r.ac), legs=r.stops&&ac?tripOf(r,ac,HC).legs.map(l=>[l.a,l.b])
+    :r.via?[[HUB.c,r.via],[r.via,r.dst],[r.dst,r.via],[r.via,HUB.c]]:[[HUB.c,r.dst],[r.dst,HUB.c]];
   const expo=legs.reduce((a,[x,y])=>a+DLY_PER_NM*Math.max(0,nm(A[x],A[y])-DLY_FREE_NM),0);
   const tot=E.delays[i]||0, knock=Math.max(0,tot-bank-expo);
   return {tot,bank,expo,knock,p};
@@ -61,7 +62,7 @@ function renderHubStats(E){
   $('hubDelay').innerHTML=!rots.length?`<div class="empty">No flying yet.</div>`:!dl.length?`<div class="empty">Nothing expects meaningful delay.</div>`
     :`<table class="fptab"><tr><th>Flight</th><th>Tail</th><th>Dep</th><th>Delay</th><th>Pad</th><th style="text-align:left;padding-left:10px">Main cause</th><th></th></tr>`
       +dl.map(x=>{const c=[[x.bank,`crowded bank (${x.p} departures within ±15m)`],[x.expo,'long-leg exposure'],[x.knock,'knock-on from an earlier rotation']].sort((a,b)=>b[0]-a[0])[0];
-        return `<tr class="clik" data-city="${x.r.dst}"><td><span class="fltno">${(nos[x.i]||{}).out||'—'}</span> ${x.r.dst}</td><td>${x.r.ac}</td><td>${fmt(x.r.dep)}</td>
+        return `<tr class="clik" data-city="${rotDst(x.r)}"><td><span class="fltno">${(nos[x.i]||{}).out||'—'}</span> ${rotDst(x.r)}</td><td>${x.r.ac}</td><td>${fmt(x.r.dep)}</td>
           <td style="color:${x.tot>=20?'var(--red)':'var(--amber)'}">+${Math.round(x.tot)}m</td><td style="color:var(--ink3)">${x.r.pad?x.r.pad+'m':'—'}</td>
           <td style="text-align:left;padding-left:10px;color:var(--ink2);white-space:normal">${c[1]}</td>
           <td>${(x.r.pad||0)<30?`<span class="x" data-padfix="${x.i}" title="add block time to both hub legs to absorb this delay">pad +${Math.min(30-(x.r.pad||0),Math.ceil(x.tot/5)*5)}m</span>`:''}</td></tr>`;}).join('')
@@ -93,7 +94,7 @@ document.addEventListener('click',e=>{
   const E=evalView(), add=Math.min(30-(r.pad||0),Math.ceil((E.delays[i]||0)/5)*5), pad=(r.pad||0)+add;
   const before=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers).length, keep=rots[i];
   pushUndo('pad '+r.ac);
-  rots[i]=mkRot(r.ac,r.dst,r.via||null,r.dep,r.turn,pad);
+  rots[i]=remkRot(r,{pad});
   const after=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers);
   if(after.length>before){
     rots[i]=keep; undoStack.pop(); renderUndo();

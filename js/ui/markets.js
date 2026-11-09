@@ -12,7 +12,7 @@ function circF(i,j){
    itinerary's own value (0.94 × circuity at a perfectly timed connection) caps it again. */
 const connPot=(i,j)=>spill(i,j)*Math.min(capture(1,HALF_CONN),0.94*circF(i,j));
 const servedSet=()=>{const s=new Set();
-  rots.forEach(r=>{if(crossHub(r,HC)){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC); s.add(L[0].b); s.add(L[L.length-1].a);}
+  rots.forEach(r=>{if(crossHub(r,HC)||r.stops){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC); s.add(L[0].b); s.add(L[L.length-1].a);}
     else (r.via?[r.dst,r.via]:[r.dst]).forEach(c=>s.add(c));});
   if(hubOrder.length>1)visitLegs(l=>l.a===HC.c||l.b===HC.c).forEach(l=>s.add(l.a===HC.c?l.b:l.a));
   return s;};
@@ -22,7 +22,7 @@ const servedSet=()=>{const s=new Set();
 function connTiming(){
   const inb={}, outb={};
   rots.forEach((r,ri)=>{
-    if(crossHub(r,HC)){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC), f=L[0], l=L[L.length-1];
+    if(crossHub(r,HC)||r.stops){const ac=owned.find(a=>a.id===r.ac); if(!ac)return; const L=legPlan(r,ac,HC), f=L[0], l=L[L.length-1];
       (outb[f.b]=outb[f.b]||[]).push({ri,t:r.dep}); (inb[l.a]=inb[l.a]||[]).push({ri,t:r.arr}); return;}
     (r.via?[r.dst,r.via]:[r.dst]).forEach(c=>{
     (inb[c]=inb[c]||[]).push({ri,t:r.arr}); (outb[c]=outb[c]||[]).push({ri,t:r.dep});});});

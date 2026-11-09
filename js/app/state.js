@@ -60,10 +60,11 @@ const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers)
 let _airE=null,_airSig='';
 function airEval(){
   const hs=netHubs();
-  const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur])]));
+  const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur,r.from||'',r.stops?JSON.stringify(r.stops):''])]));
   if(_airE&&sig===_airSig)return _airE;
   const res=hs.length===1?[evaluate(hs[0].rots,hs[0].fleet,hs[0].gates,hs[0].H)]
     :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:vFleetOf(h.c,hs),gates:h.gates,H:h.H})));
+  const levels=evaluateMulti.lastLevels||{};                                 // v3.21: way-back levels for the schedule editor
   const byHub={}; hs.forEach((h,k)=>byHub[h.c]=res[k]);
   const sum=k=>res.reduce((a,E)=>a+E[k],0), nR=hs.reduce((a,h)=>a+h.rots.length,0);
   const total={netPm:sum('netPm'),pm:sum('pm'),pax:sum('pax'),seatMi:sum('seatMi'),emptyMi:sum('emptyMi'),
@@ -73,7 +74,7 @@ function airEval(){
      from its totals (exact); per-hub nets are attributions */
   if(hs.some(h=>h.rots.some(r=>crossHub(r,h.H)))){total.emptyMi=Math.max(0,total.seatMi-total.pm); total.netPm=total.pm-EMPTY_W*total.emptyMi;}
   if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
-  _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs))}; _airSig=sig; return _airE;
+  _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs)),levels}; _airSig=sig; return _airE;
 }
 /* pre-v3.18 numbers for the current schedule, computed on demand (only last year's records need them) */
 const oldNums=()=>{const AE=airEval(); return AE.oldNums||(AE.oldNums=numberFlightsLegacy(netList(AE.hubs)));};
@@ -111,7 +112,8 @@ function dissolvePairs(){
     const turn=scheduleViolations(rots,solo,gatesOwned).some(v=>v.kind==='turn'&&(v.ac===a.id||v.ac===b.id));
     const overlap=[a.id,b.id].some(id=>{const rs=acRots(rots,id);
       return rs.length>1&&Math.abs(rs.reduce((s,r,i)=>s+r.dur+mod(rs[(i+1)%rs.length].dep-r.arr),0)-DAY)>1;});
-    if(!turn&&!overlap){delete a.pair; delete b.pair;}
+    const open=lineViolations(rots,solo,HC).some(v=>v.ac===a.id||v.ac===b.id);   // v3.21: a line being built leg by leg stays paired
+    if(!turn&&!overlap&&!open){delete a.pair; delete b.pair;}
   });
 }
 const pendingList=()=>{const p=[];CATALOG.forEach(c=>{for(let i=0;i<(pending[c.t]||0);i++)p.push({t:c.t});});return p;};

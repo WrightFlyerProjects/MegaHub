@@ -31,7 +31,7 @@ function canLeg(ac,a,b){
   if(legBlocked(ac,a,b))return false;               // runway or airport rule (v3.17)
   return true;}
 const curAC=()=>owned.find(a=>a.id===$('ac').value);
-const hm=m=>Math.floor(m/60)+'h'+String(Math.round(m%60)).padStart(2,'0');
+const hm=m=>{m=Math.round(m); return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');};
 function enforceTurn(){
   const ac=curAC(); if(!ac||!destSel)return;
   const need=turnMin(destSel,ac);
@@ -120,6 +120,7 @@ function preview(){
   const sh=shape({dst,via,dep,turn,pad},ac,HC), m=sh.marks, arr=mod(dep+sh.dur);
   const al=mod((via?m.arrDst:m.arrDst)+tzD(dst,HC)), dl=mod(m.depDst+tzD(dst,HC));
   renderFCard(ac,dst,via,dep,turn,sh,al,dl,arr,pad);
+  syncRon(dst,turn,al,dl);
   let verr=validate(rots,owned,gatesOwned,ac.id,dst,dep,turn,via,editIdx===null?undefined:editIdx,pad,HC), lineNote='';
   const needLine=lineNeed(ac,sh);
   if(needLine){
@@ -141,6 +142,28 @@ function preview(){
   renderMoveRow();
   renderAxes();
 }
+/* overnight away (v3.21): a checkbox and the local time it leaves the destination, instead of a long turn in minutes */
+let ronOn=false, ronDstSeen=null;
+const RON_MAX=1380;
+function syncRon(dst,turn,al,dl){
+  if(dst!==ronDstSeen){ronDstSeen=dst; ronOn=turn>240;} else if(turn>240)ronOn=true;
+  const max=ronOn||turn>720?RON_MAX:720; if(+$('turn').max!==max){$('turn').max=max; $('turnN').max=max; $('turn').value=turn;}
+  $('ronChk').checked=ronOn; $('ronLab').textContent=`Overnight away at ${dst} (RON)`;
+  $('backRow').style.display=ronOn?'grid':'none'; $('backLab').textContent=`Back from ${dst} (local)`;
+  if(document.activeElement!==$('backT'))$('backT').value=hhmmStr(dl);
+  $('backGnd').textContent=`${hm(turn)}${turn>240?' · overnight':''}`; ronArr=al;
+}
+let ronArr=0;
+function setRon(on){const ac=curAC(); if(!ac||!destSel)return; ronOn=on;
+  const need=turnMin(destSel,ac);
+  let t;
+  if(on){t=mod(420-ronArr); if(t<=240)t=600;}             // default: leave at 07:00 local the next morning
+  else t=need;                                            // back to a quick turn
+  $('turn').max=on?RON_MAX:720; $('turnN').max=$('turn').max; $('turn').value=Math.round(t); preview();}
+function setBack(v){const ac=curAC(); if(!ac||!destSel||!/^\d{1,2}:\d{2}$/.test(v))return;
+  let t=mod(hhmm(v)-ronArr); const need=turnMin(destSel,ac); if(t<need)t+=DAY;
+  if(t>RON_MAX){$('err').textContent=`Leaving ${destSel} at ${v} means ${hm(t)} on the ground — over ${hm(RON_MAX)}.`;return;}
+  $('turn').value=Math.round(t); preview();}
 const hhmm=v=>{const [h,m]=v.split(':').map(Number);return mod(h*60+m);};
 const hhmmStr=m=>{m=mod(Math.round(m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};  // 24h for <input type=time>
 /* 2-day lines: a rotation that won't fit in a day can fly as a 2-day line with a second,

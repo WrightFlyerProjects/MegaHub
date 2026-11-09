@@ -2,6 +2,7 @@
 /* ---------------- board ---------------- */
 /* the out-turn-return segments of one rotation, drawn through segFn (seg for a normal lane) */
 function rotBlocks(r,a,segFn){
+  if(r.stops)return tripBlocks(r,a,segFn);
   const sh=shape(r,a,HC), m=sh.marks, ron=r.turn>240, seg=segFn;
   let inner;
       if(!r.via){
@@ -20,6 +21,16 @@ function rotBlocks(r,a,segFn){
           +seg(m.depVia2,sh.legs[3].t,'ret',HUB.c,`${a.id} ${r.via}→${HUB.c} · arr ${fmt(m.arrHub)} ${HUB.c}`);
       }
   return inner;
+}
+/* any trip shape (v3.21): each leg coloured by what it connects — from a hub, into a hub, or spoke to spoke */
+function tripBlocks(r,a,seg){
+  const T=tripOf(r,a,HC); let h='';
+  T.legs.forEach((l,k)=>{const fromHub=isHubC(l.a), toHub=isHubC(l.b), cls=fromHub?'out':toHub?'ret':'s2s';
+    const dl=mod(l.dep+tzD(l.a,HC)), al=mod(l.arr+tzD(l.b,HC)), q=cls==='out'?' '+qcls(pref(al)):cls==='ret'?' '+qcls(pref(dl)):'';
+    h+=seg(l.dep,l.t,cls+q,l.b,`${a.id} ${l.a}→${l.b} · dep ${fmt(dl)} ${l.a} · arr ${fmt(al)} ${l.b}`);
+    if(k<T.legs.length-1){const s=T.stops[k], g=s.g, ron=!s.thru&&g>240;
+      h+=seg(l.arr,g,'turn'+(ron?' ron':''),'',`${Math.round(g)}m at ${l.b}${s.thru?' · through stop':ron?' · overnight':''}`);}});
+  return h;
 }
 function renderLanes(E){
   const DL=delayMap(rots,owned,HC);
@@ -40,7 +51,7 @@ function renderLanes(E){
           buf[ln]+=`<div class="blk ${cls}" style="left:${X(w)}%;width:${X(take)}%" title="${title||''}">${lab||''}</div>`; t+=take; rem-=take;}
         return '';};
       rotBlocks(r,owned.find(x=>x.id===r.ac),segL);
-      [a.id,P].forEach(ln=>{if(buf[ln])lineBuf[ln]+=`<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${r.ac} → ${r.dst}">${buf[ln]}</div>`;});});});
+      [a.id,P].forEach(ln=>{if(buf[ln])lineBuf[ln]+=`<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${r.ac} → ${rotDst(r)}">${buf[ln]}</div>`;});});});
   let curType=null;
   $('lanes').innerHTML=lanes.map(a=>{
     const rs=rots.map((r,i)=>({r,i})).filter(o=>o.r.ac===a.id);
@@ -48,7 +59,7 @@ function renderLanes(E){
     // each rotation wrapped so a click loads it into the editor (#6)
     const blocks=a.pair?(lineBuf[a.id]||''):rs.map(({r,i})=>{
       const inner=rotBlocks(r,a,seg);
-      return `<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${a.id} → ${r.dst}">${inner}</div>`;
+      return `<div class="rotwrap ${i===editIdx?'ed':''}" data-editrot="${i}" title="click to edit ${a.id} → ${rotDst(r)}">${inner}</div>`;
     }).join('');
     let bands='';
     if(a.id===$('ac').value&&editIdx===null){
@@ -86,7 +97,7 @@ function renderSchedule(E){
      aircraft) — numbers can change when the schedule changes — else by route and aircraft */
   const lastBy={}; if(lastFlt)Object.values(lastFlt).forEach(p=>{const k=p.from+'>'+p.to+'>'+p.ac;(lastBy[k]=lastBy[k]||[]).push(p);});
   const same=(p,f)=>p&&p.from===f.from&&p.to===f.to&&p.ac===f.ac;
-  const hashNo=f=>{if(f.visit)return null; const r=rots[f.ri], ac=r&&owned.find(a=>a.id===r.ac); if(!ac)return null;   // the number before v3.10 (older saves use it)
+  const hashNo=f=>{if(f.visit)return null; const r=rots[f.ri], ac=r&&owned.find(a=>a.id===r.ac); if(!ac||(r.stops&&f.leg==null))return null;   // the number before v3.10 (older saves use it)
     return f.leg!=null?legPlan(r,ac,HC)[f.leg].oldNo:flightNoLegacy(HC.c,r.dst,r.dep,r.via||null,f.dir,HC.band);};
   const v317No=f=>f.visit?null:oldNums().get(HC.c+'#'+f.ri+'#'+(f.leg!=null?'L'+f.leg:f.dir));   // v3.10–3.17 number of this flight
   const lastOf=f=>{if(same(lastFlt[f.no],f))return lastFlt[f.no];
@@ -101,9 +112,9 @@ function renderSchedule(E){
     const carried=local+connect+pair, lf=f.seats?Math.min(1,carried/f.seats):0;
     return {f,r,ri:f.visit?'v'+f.no:f.ri,flt:f.no,dir:f.dir,from:f.from,to:f.to,via:f.via,
       dep:f.spokeTime!=null&&f.dir==='ret'?f.spokeTime:f.hubTime,   // the flight's own departure
-      depShown:f.dir==='out'?f.hubTime:f.spokeTime,                 // where this leg departs
-      arrShown:f.dir==='out'?f.spokeTime:f.hubTime,                 // where this leg arrives
-      ron:r.turn>240, d,carried,local,connect,pair,lf,seats:f.seats,src};
+      depShown:f.depLoc!=null?f.depLoc:f.dir==='out'?f.hubTime:f.spokeTime,   // where this leg departs (local)
+      arrShown:f.arrLoc!=null?f.arrLoc:f.dir==='out'?f.spokeTime:f.hubTime,   // where this leg arrives (local)
+      ron:tripRon(r,f), d,carried,local,connect,pair,lf,seats:f.seats,src};
   });
   if(cnt)cnt.textContent = legs.length+' flight'+(legs.length!==1?'s':'');
   if(tools)tools.style.display = legs.length>=6 ? 'block' : 'none';
@@ -133,9 +144,10 @@ function renderSchedule(E){
     const ron=x.ron?' <span style="color:var(--violet)">RON</span>':'';
     const dirchip=x.dir==='out'
       ? '<span class="dirchip out">out</span>'
+      : x.dir==='mid' ? '<span class="dirchip mid">s2s</span>'
       : '<span class="dirchip ret">ret</span>';
     const dly=x.d>3?`<span class="dly ${x.d>30?'bad':''}">+${x.d}m</span>`:'<span style="color:var(--ink3)">—</span>';
-    const main=`<tr class="clik ${i===editIdx?'editing':''} ${open?'openrow':''}" data-open="${x.ri}" data-dir="${x.dir}" data-city="${x.dir==='out'?x.to:x.from}">
+    const main=`<tr class="clik ${i===editIdx?'editing':''} ${open?'openrow':''}" data-open="${x.ri}" data-dir="${x.dir}" data-city="${x.dir==='ret'?x.from:x.to}">
       <td><span class="fltno">${x.flt}</span></td>
       <td>${r.ac}</td>
       <td>${dirchip} ${x.from}→${x.to}${x.via&&x.via!==x.to?via:''}${ron}</td>
@@ -238,6 +250,11 @@ renderSchedule(E);
 function rotLegs(r,ac,Hh,home,ri){
   Hh=Hh||HC; home=home||Hh.c; if(ri==null)ri=rots.indexOf(r);
   const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;        // 2-day line: whoever is on this part of the cycle today
+  if(r.stops&&(loopHub(r,Hh)||!crossHub(r,Hh))){const T=tripOf(r,ac,Hh), segs=tripSegs(T), out=[];       // any other trip shape (v3.21): one number per flight
+    segs.forEach((g,j)=>{const a=T.legs[g[0]], z=T.legs[g[g.length-1]];
+      const fb=flightNo(a.a,z.b,mod(a.dep+tzD(a.a,Hh)),g.length>1?a.b:null,'out',ac), flt=numOf(home+'#'+ri+'#'+segKey(j,segs.length),fb);
+      g.forEach(k=>{const l=T.legs[k]; out.push({flt,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t});});});
+    return out;}
   if(crossHub(r,Hh))
     return legPlan(r,ac,Hh).map(l=>({flt:numOf(home+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));
   const hc=Hh.c, m=shape(r,ac,Hh).marks;
@@ -262,9 +279,10 @@ function visitLegs(filter){
   const out=[];
   netHubs().forEach(h=>{ if(h.c===HC.c)return;
     h.rots.forEach((r,ri)=>{ if(!crossHub(r,h.H))return; const ac=h.fleet.find(a=>a.id===r.ac); if(!ac)return;
+      const nums=rotLegs(r,ac,h.H,h.c,ri).map(x=>x.flt);                 // same numbers the rest of the game shows
       legPlan(r,ac,h.H).forEach((l,k,L)=>{ if(!filter(l,L[k+1]))return;
-        out.push({flt:numOf(h.c+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,h.H)),arr:mod(l.arr+tzD(l.b,h.H)),ac:`${r.ac} · ${h.c}`,t:ac.t,owner:l.owner,
-          depHC:mod(l.dep+tzD(HC.c,h.H)),arrHC:mod(l.arr+tzD(HC.c,h.H)),blk:l.t,home:h.c,key:h.c+':'+ri+':'+k,next:L[k+1]||null,nextNo:L[k+1]?numOf(h.c+'#'+ri+'#L'+(k+1),L[k+1].no):null,hH:h.H});});});});
+        out.push({flt:nums[k],a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,h.H)),arr:mod(l.arr+tzD(l.b,h.H)),ac:`${r.ac} · ${h.c}`,t:ac.t,owner:l.owner,
+          depHC:mod(l.dep+tzD(HC.c,h.H)),arrHC:mod(l.arr+tzD(HC.c,h.H)),blk:l.t,home:h.c,key:h.c+':'+ri+':'+k,next:L[k+1]||null,nextNo:L[k+1]?nums[k+1]:null,hH:h.H});});});});
   return out;
 }
 function renderCity(c,E){

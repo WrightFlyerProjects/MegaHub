@@ -13,7 +13,9 @@ const slimLast=L=>L?{year:L.year,pm:L.pm,pax:L.pax,peak:L.peak,
   markets:slimMarkets(L.markets),local:slimLocal(L.local),perFlt:L.perFlt||null,
   perTail:L.perTail||null,pairRows:L.pairRows||null}:null;
 const slimFleet=f=>f.map(a=>a.pair?{id:a.id,t:a.t,pair:a.pair}:{id:a.id,t:a.t});
-const slimRots=rs=>rs.map(r=>({ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn,pad:r.pad||0}));
+const slimRots=rs=>rs.map(r=>r.stops
+  ?{ac:r.ac,dep:r.dep,pad:r.pad||0,...(r.from?{from:r.from}:{}),stops:r.stops.map(s=>({c:s.c,...(s.g!=null?{g:s.g}:{}),...(s.thru?{thru:true}:{})}))}   // v3.21 general trip
+  :{ac:r.ac,dst:r.dst,via:r.via||null,dep:r.dep,turn:r.turn,pad:r.pad||0});
 
 function snapshot(){
   stashView();
@@ -36,6 +38,12 @@ function restoreHub(h){
   rots=[]; const dropped=[];
   (h.rots||[]).forEach(r=>{
     const ac=owned.find(a=>a.id===r.ac);
+    if(r.stops){                                   // v3.21 general trip (an unfinished day loads too, flagged)
+      if(!ac||!r.stops.length||r.stops.some(s=>!A[s.c])||(r.from&&!A[r.from])){dropped.push({...r,why:'aircraft or city missing'});return;}
+      const t={ac:r.ac,dep:mod(r.dep),pad:r.pad||0,...(r.from?{from:r.from}:{}),stops:r.stops.map(s=>({c:s.c,...(s.g!=null?{g:s.g}:{}),...(s.thru?{thru:true}:{})}))};
+      const err=validateTrip(rots,owned,t,undefined,HC,true,true);
+      if(err){dropped.push({...r,dst:rotDst(r),why:err});return;}
+      rots.push(tripMeta(t,ac,HC)); return;}
     if(!ac||!A[r.dst]||r.dst===HUB.c){dropped.push({...r,why:'aircraft or city missing'});return;}
     const err=validate(rots,owned,gatesOwned,r.ac,r.dst,r.dep,r.turn,r.via||null,undefined,r.pad||0,HC,true);   // airport limits are flagged, not dropped (v3.17)
     if(err){dropped.push({...r,why:err});return;}

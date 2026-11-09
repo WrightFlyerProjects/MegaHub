@@ -38,9 +38,10 @@ document.addEventListener('click',e=>{
   if(d!==null&&d!==undefined){pushUndo('delete');rots.splice(+d,1);if(editIdx===+d)editIdx=null;launched=false;render();preview();return;}
   const ed=e.target.getAttribute&&e.target.getAttribute('data-edit');
   if(ed!==null&&ed!==undefined){
-    const r=rots[+ed];editIdx=+ed;
+    const r=rots[+ed]; if(!r)return; if(r.stops){openLegOf(+ed);return;}   // a leg-built trip opens in the leg editor (v3.21)
+    editIdx=+ed; setEditTab('rt');
     $('ac').value=r.ac;setDest(r.dst);setVia(r.via||'');
-    $('dep').value=r.dep;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
+    $('dep').value=r.dep;$('turn').max=$('turnN').max=r.turn>720?RON_MAX:720;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
     document.getElementById('add').scrollIntoView({block:'center',behavior:'smooth'});return;}
   if(e.target.id==='cityclose'){selCity=null;$('city').style.display='none';return;}
   // sort buttons
@@ -52,9 +53,10 @@ document.addEventListener('click',e=>{
   const er=e.target.closest&&e.target.closest('[data-editrot]');
   if(er){
     const idx=+er.getAttribute('data-editrot'); const r=rots[idx]; if(!r)return;
-    editIdx=idx;
+    if(r.stops){openLegOf(idx);return;}
+    editIdx=idx; setEditTab('rt');
     $('ac').value=r.ac;setDest(r.dst);setVia(r.via||'');
-    $('dep').value=r.dep;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
+    $('dep').value=r.dep;$('turn').max=$('turnN').max=r.turn>720?RON_MAX:720;$('turn').value=r.turn;$('padSel').value=String(r.pad||0);preview();
     document.getElementById('add').scrollIntoView({block:'center',behavior:'smooth'});return;
   }
   const op=e.target.closest&&e.target.closest('tr[data-open]');
@@ -156,13 +158,15 @@ $('tclock').addEventListener('input',()=>{$('tclockOut').textContent=fmt(+$('tcl
 $('dep').addEventListener('input',preview);
 $('turn').addEventListener('input',preview);
 $('padSel').addEventListener('change',preview);
+$('ronChk').addEventListener('change',()=>setRon($('ronChk').checked));
+$('backT').addEventListener('change',()=>setBack($('backT').value));
 document.addEventListener('change',e=>{if(e.target.id==='pairSel'){pairPick=e.target.value;preview();}});
 $('depT').addEventListener('input',()=>{const v=$('depT').value;
   if(/^\d{1,2}:\d{2}$/.test(v)){const m=hhmm(v);if(m>=0&&m<DAY){$('dep').value=m;preview();}}});
 $('depT').addEventListener('change',()=>{$('dep').value=hhmm($('depT').value);preview();});
 $('turnN').addEventListener('input',()=>{const v=+$('turnN').value;
-  if(Number.isFinite(v)&&v>=25&&v<=720){$('turn').value=v;preview();}});
-$('turnN').addEventListener('blur',()=>{const v=Math.max(25,Math.min(720,+$('turnN').value||45));
+  if(Number.isFinite(v)&&v>=25&&v<=+$('turn').max){$('turn').value=v;preview();}});
+$('turnN').addEventListener('blur',()=>{const v=Math.max(25,Math.min(+$('turn').max,+$('turnN').value||45));
   $('turn').value=v;$('turnN').value=String(v);preview();});
 $('add').onclick=()=>{
   const acId=$('ac').value,dst=destSel,dep=+$('dep').value,turn=+$('turn').value,via=viaSel||null,pad=+$('padSel').value||0;

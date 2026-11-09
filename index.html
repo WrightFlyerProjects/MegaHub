@@ -71,6 +71,7 @@
 <section class="tabpane" data-pane="schedule" role="tabpanel">
   <div class="grid">
     <div>
+      <div class="daypanel" id="dayPanel"></div>
       <h2>Rotation board <em id="axlab">pick a destination for its local clock</em></h2>
       <div class="board">
       <div class="axis dfw" id="axis"></div>
@@ -83,10 +84,13 @@
     <div>
       <div class="panel step" id="pRot" style="margin-top:16px">
       <div class="step-badge">2</div>
-      <h2>Add a rotation</h2>
+      <div class="etabs" role="tablist" aria-label="How to schedule"><button type="button" data-etab="leg" role="tab">Leg by leg</button><button type="button" data-etab="rt" role="tab">Round trip</button></div>
       <label for="ac">Aircraft</label><select id="ac"></select>
       <div id="moverow" style="display:none"></div>
       <div class="rowv" style="margin-top:5px"><span id="acFree" style="color:var(--ink3)">—</span></div>
+      <div id="legForm" style="display:none"></div>
+      <div id="rtForm">
+      <h2 style="margin-top:12px">Add a rotation <em id="rtSub">out and back from your hub</em></h2>
       <label for="destQ">Destination <span id="rangeNote" style="color:var(--ink3)"></span></label>
       <div class="combo"><input id="destQ" type="text" autocomplete="off" placeholder="type a code or city…"><div class="clist" id="destL"></div></div>
       <label for="viaQ">Stop en route (optional)</label>
@@ -98,11 +102,14 @@
       </div>
       <input type="range" id="dep" min="0" max="1439" step="1" value="420">
       <input type="range" id="turn" min="25" max="720" step="1" value="45">
+      <label class="chk"><input type="checkbox" id="ronChk"> <span id="ronLab">Overnight away at the destination</span></label>
+      <div id="backRow" class="duo" style="display:none"><div><label for="backT" id="backLab">Back from — (local)</label><input type="time" id="backT" step="60" value="07:00"></div><div><label>On the ground</label><div class="fromfix" id="backGnd">—</div></div></div>
       <div class="fcard" id="fcard"></div>
       <div class="err" id="err"></div>
       <button id="add">Schedule rotation</button>
       <button class="ghost" id="canceledit" style="display:none">Cancel edit</button>
       <button class="ghost" id="clearac" style="display:none">Clear this aircraft's schedule</button>
+      </div>
       <button class="ghost" id="clear">Clear the board</button>
       </div>
       <div class="panel" style="margin-top:16px">
@@ -276,6 +283,7 @@
 <script src="js/ui/map.js"></script>
 <script src="js/ui/terminal.js"></script>
 <script src="js/ui/editor.js"></script>
+<script src="js/ui/legs.js"></script>
 <script src="js/ui/fleetperf.js"></script>
 <script src="js/ui/markets.js"></script>
 <script src="js/ui/hubstats.js"></script>
