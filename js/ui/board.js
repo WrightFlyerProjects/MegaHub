@@ -236,7 +236,7 @@ renderSchedule(E);
   renderMarketsTab(E); renderTimetable();
   renderFleetPerf(E);
   renderRoster();          // status, pairs and sell/replace locks follow the schedule
-  renderHubSwitch(); renderHubsPanel();
+  renderHubSwitch(); renderHubsPanel(); renderProjPanel();
   renderHubStats(E); renderHistory(); renderSeasons(); renderPointsLog();
   renderCoach();
   renderMap(E); renderTerminal(E);

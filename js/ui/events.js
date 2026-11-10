@@ -7,7 +7,7 @@ $('cat').addEventListener('click',e=>{
   if(p||m)renderFleetPanel();});
 document.addEventListener('click',e=>{
   const g=e.target.getAttribute&&e.target.getAttribute('data-gp'),gm=e.target.getAttribute&&e.target.getAttribute('data-gm');
-  if(g){gatesPending=Math.min(MAX_GATES-gatesOwned,gatesPending+1);renderFleetPanel();return;}
+  if(g){gatesPending=Math.min(maxGatesAt(HC.c)-gatesOwned,gatesPending+1);renderFleetPanel();return;}
   if(gm){if(gatesPending>0&&stdFree()>0)gatesPending--;renderFleetPanel();return;}
   const tq=a=>e.target.getAttribute&&e.target.getAttribute(a);
   if(tq('data-hp')){if(stdFree()>0)tierPend.H++;renderFleetPanel();return;}
@@ -203,7 +203,7 @@ $('launch').onclick=()=>{
   if(hubOrder.some(c=>hubViol(c).length))return;         // every hub's schedule must be legal
   const e=era();
   const score=T.netPm;                        // NET pax-miles is the score (whole airline)
-  const gross=grossPts(Math.max(0,score)), up=airUpkeep(), net=gross-up;
+  const gross=grossPts(Math.max(0,score)), up=airUpkeep(), dly=airDelayCost().pts, net=gross-up-dly;   // v3.23: delays cost points
   launched=true; editIdx=null;
   // per hub: last year's per-flight, per-aircraft and market results, for planning next year
   hubOrder.forEach(c=>withHub(c,()=>{const E=AE.byHub[c], perFlt={};
@@ -224,8 +224,8 @@ $('launch').onclick=()=>{
   else { cumPm+=score; points=Math.max(0,points+net); results.push(seasonRec); }
   committed[e.year]={score,net};
   points=Math.max(0,points);
-  logPts(prior?`${e.year} re-launched (net ${net>=0?'+':''}${net}, replacing ${prior.net>=0?'+':''}${prior.net})`:`${e.year} flown: +${gross} traffic − ${up} upkeep`,points-before);
-  lastAward={year:e.year,pm:T.pm,netPm:T.netPm,lf:T.lf,gross,up,net};
+  logPts(prior?`${e.year} re-launched (net ${net>=0?'+':''}${net}, replacing ${prior.net>=0?'+':''}${prior.net})`:`${e.year} flown: +${gross} traffic − ${up} upkeep − ${dly} delays`,points-before);
+  lastAward={year:e.year,pm:T.pm,netPm:T.netPm,lf:T.lf,otp:T.otp,gross,up,dly,net};
   if(hubOrder.length>1)lastAward.hubs=hubOrder.map(c=>({c,netPm:AE.byHub[c].netPm,pax:AE.byHub[c].pax}));
   render(); renderFleetPanel();               // reveals the year just flown (and the new budget); calendar advances on Continue
   saveLocal();

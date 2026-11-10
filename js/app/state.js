@@ -27,8 +27,17 @@ function netOthers(code){const o={}; hubOrder.forEach((c,k)=>{if(c===code)return
 function refreshNet(){if(!HC)return; HC.others=netOthers(HC.c); HC.rank=Math.max(0,hubOrder.indexOf(HC.c));}
 setHub('DFW');
 /* park the viewed hub's working state in the store */
-function stashView(){if(!HC)return; const b=(hubStore[HC.c]&&hubStore[HC.c].band)||0;
-  hubStore[HC.c]={gates:gatesOwned,tiers:gateTiers,fleet:owned,rots,band:b}; lastHubs[HC.c]=lastE;}
+function stashView(){if(!HC)return; const o=hubStore[HC.c]||{}, b=o.band||0;
+  hubStore[HC.c]={gates:gatesOwned,tiers:gateTiers,fleet:owned,rots,band:b,proj:o.proj||[]}; lastHubs[HC.c]=lastE;}
+/* v3.23 airport projects: hubStore[c].proj = [{k:'rwy'|'conc'|'hand', y:year bought}]. A project bought in
+   year y opens in year y+1 (built over the winter); the engine sees only open ones. */
+const projOf=c=>(hubStore[c]&&hubStore[c].proj)||[];
+infraOf=c=>{const o={rwy:0,conc:0,hand:0}; projOf(c).forEach(p=>{if(p.y<YEAR)o[p.k]++;}); return o;};
+const projPending=c=>projOf(c).filter(p=>p.y>=YEAR);
+const projLevel=(c,k)=>projOf(c).filter(p=>p.k===k).length;               // open + under construction
+const projCost=(c,k)=>Math.round(PROJECTS[k].cost*(k==='conc'&&NO_RUNWAY.has(c)?CONC_TIGHT:1));
+const projMax=(c,k)=>k==='rwy'&&NO_RUNWAY.has(c)?0:PROJECTS[k].max;
+const superHub=c=>{const x=infraOf(c); return Object.keys(PROJECTS).every(k=>(x[k]||0)>=projMax(c,k));};
 /* bring a hub into the working state (no other side effects) */
 function loadView(code){const h=hubStore[code]; setHub(code); gatesOwned=h.gates; gateTiers=h.tiers; owned=h.fleet; rots=h.rots; lastE=lastHubs[code]||null;}
 /* switch the view to another hub */
@@ -55,7 +64,9 @@ function nextTail(used){used=used||new Set(allTails()); let id; do{id='N'+(acSeq
 /* points log: every change to the points balance, newest last (v3.13) */
 let pointsLog=[];
 function logPts(what,amt){if(!amt)return; pointsLog.push({y:YEAR,what,amt:Math.round(amt),bal:points}); if(pointsLog.length>80)pointsLog.shift();}
-const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers),0);
+const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers)+infraUpkeep(h.c),0);
+/* v3.23 a year of delays in points, for the whole airline (from the cached evaluation) */
+const airDelayCost=()=>{const AE=airEval(); return AE.dly||(AE.dly=delayCost(AE.hubs.map(h=>AE.byHub[h.c].flights)));};
 /* one evaluation of the whole airline (hubs share connecting demand), cached until anything changes */
 let _airE=null,_airSig='',_airFP=null;
 /* v3.22: a cheap fingerprint of everything the evaluation depends on — the same objects with the same fields.
@@ -66,7 +77,7 @@ function airFP(){
   const hubAt=c=>HC&&c===HC.c?{fleet:owned,rots,gates:gatesOwned,band:(hubStore[c]&&hubStore[c].band)||0}:hubStore[c];
   const codes=hubOrder.length?hubOrder:(HC?[HC.c]:[]);
   for(const c of codes){const h=hubAt(c); if(!h){fp.push(c,null);continue;}
-    fp.push(c,h.band||0,h.gates,h.fleet.length,h.rots.length);
+    const x=infraOf(c); fp.push(c,h.band||0,h.gates,h.fleet.length,h.rots.length,x.rwy,x.conc,x.hand);
     for(const a of h.fleet)fp.push(a,a.id,a.t,a.pair);     // aircraft are edited in place (pairing, tail renumbering)
     for(const r of h.rots)fp.push(r,r.ac,r.dep);}          // rotations are replaced, not edited — ref + a safety check
   return fp;
@@ -75,7 +86,7 @@ const sameFP=(a,b)=>{if(!a||a.length!==b.length)return false; for(let i=0;i<a.le
 function airEval(){
   const fp=airFP(); if(_airE&&sameFP(_airFP,fp))return _airE;
   const hs=netHubs();
-  const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur,r.from||'',r.stops?JSON.stringify(r.stops):''])]));
+  const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,infraOf(h.c),h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur,r.from||'',r.stops?JSON.stringify(r.stops):''])]));
   if(_airE&&sig===_airSig){_airFP=fp; return _airE;}
   const res=hs.length===1?[evaluate(hs[0].rots,hs[0].fleet,hs[0].gates,hs[0].H)]
     :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:vFleetOf(h.c,hs),gates:h.gates,H:h.H})));

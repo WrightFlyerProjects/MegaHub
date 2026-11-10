@@ -23,14 +23,14 @@ function snapshot(){
     airline:{name:airline.name,c1:airline.c1,c2:airline.c2},
     year:year(), points, cumPm, results, acSeq, launched, coachOff, lastAward, committed, startYear:era().start, yearStartSnap,
     view:HC.c, pointsLog, rules:1,                 // rules:1 — written under airport limits (v3.17)
-    hubs:hubOrder.map(c=>{const h=hubStore[c]; return {c,band:h.band||0,gates:h.gates,tiers:h.tiers,
+    hubs:hubOrder.map(c=>{const h=hubStore[c]; return {c,band:h.band||0,gates:h.gates,tiers:h.tiers,...(h.proj&&h.proj.length?{proj:h.proj.map(p=>({k:p.k,y:p.y}))}:{}),
       fleet:slimFleet(h.fleet),rots:slimRots(h.rots),last:slimLast(lastHubs[c])};})};
 }
 
 /* one hub from a save into the working state; returns the rotations that no longer fit the rules */
 function restoreHub(h){
   if(!A[h.c])throw new Error(`Unknown hub ${h.c}`);
-  hubStore[h.c]={band:h.band||0}; setHub(h.c);
+  hubStore[h.c]={band:h.band||0,proj:(Array.isArray(h.proj)?h.proj:[]).filter(p=>p&&PROJECTS[p.k]&&Number.isFinite(p.y)).map(p=>({k:p.k,y:p.y}))}; setHub(h.c);
   gatesOwned=h.gates|0; owned=[];
   (h.fleet||[]).forEach(f=>{const t=TYPE_RENAMED[f.t]||f.t, c=CATALOG.find(x=>x.t===t); if(c)owned.push(f.pair?{id:f.id,...c,pair:f.pair}:{id:f.id,...c});});
   owned.forEach(a=>{if(!a.pair)return; const b=owned.find(x=>x.id===a.pair);           // keep only valid, mutual, same-type pairs

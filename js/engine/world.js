@@ -11,7 +11,7 @@ function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i)
 /* base spill is also hub-independent: it's the market's own demand vs its own nonstops */
 /* v3.16: a vacation market (US/Canada ↔ Caribbean, Bahamas, Bermuda) is scaled up; Canadian codes start with Y */
 const homeMkt=a=>!a.vac&&(!a.intl||a.c[0]==='Y');
-const vacF=(a,b)=>a.vac&&homeMkt(b)?vacMult(a.w):b.vac&&homeMkt(a)?vacMult(b.w):1;
+const vacF=(a,b)=>a.vac&&homeMkt(b)?vacX(a):b.vac&&homeMkt(a)?vacX(b):1;
 const spillBase={};
 AIRPORTS.forEach(a=>AIRPORTS.forEach(b=>{
   if(a.c===b.c)return;
@@ -35,6 +35,14 @@ function makeHub(code,band){
   const dHub={}; spokes.forEach(s=>dHub[s.c]=nm(ap,s));
   return {c:code,ap,spokes,dHub,band:band||0};   // band: this hub's flight-number range (0 → 100–999, 1 → 1100–1999…)
 }
+/* v3.23 a hub's open airport projects {rwy,conc,hand}. The app supplies the real lookup (state.js);
+   the engine alone sees none, so engine tests and old saves run unchanged. */
+const NO_INFRA={rwy:0,conc:0,hand:0};
+let infraOf=c=>NO_INFRA;
+const hubFree=c=>DLY_CONGEST_FREE+RWY_FREE[infraOf(c).rwy||0];        // departures per 30 min before the bank congests
+const hubCong=c=>infraOf(c).hand?DLY_CONGEST*HAND_CONG:DLY_CONGEST;    // minutes per departure over that
+const hubRec=c=>infraOf(c).hand?HAND_REC:0;                            // extra delay a hub turn recovers
+const maxGatesAt=c=>MAX_GATES+CONC_GATES*(infraOf(c).conc||0);
 /* ---- mutable world state: era (airline-wide) ---- */
 let growth=1, YEAR=YEAR_MIN;
 function setYear(y){YEAR=Math.max(YEAR_MIN,Math.min(YEAR_MAX,y));growth=anchorFor(YEAR).g;}
@@ -49,7 +57,7 @@ const availTypes=()=>{const y=Math.min(YEAR,DATA_MAX);return CATALOG.filter(c=>y
 setYear(YEAR_MIN);
 
 const tzD=(c,H)=>A[c].utc-H.ap.utc;               // local time at c minus local time at hub H
-const hubOD=c=>Math.round(52*A[c].w*growth*(A[c].vac?vacMult(A[c].w):1));      // per direction; hubs are all US/Canada-side
+const hubOD=c=>Math.round(52*A[c].w*growth*(A[c].vac?vacX(A[c]):1));      // per direction; hubs are all US/Canada-side
 const spill=(i,j)=>Math.round(spillBase[i+j]*growth);
 
 /* A bigger terminal is a slower terminal: longer walks, more remote stands.

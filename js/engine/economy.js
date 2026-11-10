@@ -22,4 +22,11 @@ const upkeepPts=(fleet,gates,tiers)=>Math.round(0.12*fleetCost(fleet))+gates+(ti
 /* upfit cost from one tier mix to another (upgrades only): every gate that becomes heavy-capable
    pays GATE_UP_H, every gate that becomes international pays GATE_UP_I on top */
 const upfitCost=(from,to)=>Math.max(0,(to.H+to.I)-(from.H+from.I))*GATE_UP_H+Math.max(0,to.I-from.I)*GATE_UP_I;
+/* v3.23 airport projects' yearly upkeep at a hub (open ones only) */
+const infraUpkeep=c=>{const x=infraOf(c); return Object.keys(PROJECTS).reduce((s,k)=>s+(x[k]||0)*PROJECTS[k].upkeep,0);};
+/* v3.23 what a year of delays costs: passenger-minutes of delay on a typical day, full flights weighted up */
+function delayCost(flightLists){let m=0;
+  flightLists.forEach(L=>(L||[]).forEach(f=>{if(f.visit||!f.delay)return; const pax=(f.local||0)+(f.connect||0)+(f.pair||0);
+    m+=f.delay*pax*(f.seats&&pax>FULL_LF*f.seats?FULL_DLY:1);}));
+  return {paxMin:Math.round(m),pts:Math.round(m*DLY_PTS)};}
 const netPts=(pm,fleet,gates)=>grossPts(pm)-upkeepPts(fleet,gates);

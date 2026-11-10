@@ -62,7 +62,7 @@ function crossCong(r,ac,H){
   const legs=legPlan(r,ac,H), half=legs.length/2, res={out:0,ret:0};
   legs.forEach(l=>{ if(l.a===H.c||!isOwnHub(l.a,H))return;
     const P=H.others[l.a].press, p=P?P[Math.round(mod(l.dep+tzD(l.a,H)))%DAY]:0;
-    res[l.k<half?'out':'ret']+=DLY_CONGEST*Math.max(0,p-DLY_CONGEST_FREE);});
+    res[l.k<half?'out':'ret']+=hubCong(l.a)*Math.max(0,p-hubFree(l.a));});   // that hub's own runways and handling (v3.23)
   return res;
 }
 

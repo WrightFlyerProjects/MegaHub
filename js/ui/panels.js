@@ -215,7 +215,7 @@ function renderStats(E){
     ['Hub turn'+at,mt+'m',typeCount(owned)+' fleet type'+(typeCount(owned)>1?'s':''),'v'],
     ['Min connect'+at,MCTg()+'m',gatesOwned+' gates leased','v'],
     ['On-time',(multi?TT.rots:rots.length)?Math.round(TT.otp*100)+'%':'—',
-      rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m`:'no flying','v']
+      rots.length?`avg delay +${Math.round(E.delays.reduce((a,d)=>a+d,0)/E.delays.length)}m · costs ${airDelayCost().pts} pts/yr`:'no flying','v']
   ].map(s=>`<div class="stat"><div class="k">${s[0]}</div><div class="${s[3]}">${s[1]}</div><div class="n">${s[2]}</div></div>`).join('');
   const viol=scheduleViolations(rots,vFleet(),gatesOwned,gateTiers,HC);
   if(viol.length){
@@ -270,7 +270,8 @@ function renderAward(){
     <div class="rowv" style="margin-top:4px"><span>Cumulative net</span><b>${Math.round(cumPm).toLocaleString()}</b></div>
     <div style="border-top:1px solid var(--rule);margin:8px 0"></div>
     <div class="rowv"><span>Traffic points earned</span><b>+${gross}</b></div>
-    <div class="rowv"><span>Fleet &amp; gate upkeep</span><b style="color:var(--red)">−${up}</b></div>
+    <div class="rowv"><span>Fleet, gate &amp; airport upkeep</span><b style="color:var(--red)">−${up}</b></div>
+    ${lastAward.dly!=null?`<div class="rowv"><span title="Passenger-minutes of delay — rebooking, meals, hotels and goodwill. Delays on full flights cost ${FULL_DLY}× (no empty seats to rebook anyone).">Delays${lastAward.otp!=null?` (${Math.round(lastAward.otp*100)}% on time)`:''}</span><b style="color:var(--red)">−${lastAward.dly}</b></div>`:''}
     <div class="rowv" style="margin-top:4px"><span><b>Net carried forward</b></span><b style="color:${net>=0?'var(--green)':'var(--red)'}">${net>=0?'+':''}${net}</b></div>
     ${results.length?`<div style="border-top:1px solid var(--rule);margin:8px 0"></div><div style="font:400 11px/1.7 var(--mono);color:var(--ink3)">`
       +results.slice(-6).map(r=>`${r.y}: ${Math.round(r.pm/1000).toLocaleString()}k`).join(' · ')+`</div>`:''}
@@ -278,6 +279,8 @@ function renderAward(){
       :`<button id="advance">Continue to ${flownYear+1}${nextLeap?' — new schedule data':''}</button>`}`;
   if(!last)$('advance').onclick=()=>{
     setYear(flownYear+1);                     // roll the calendar forward now
+    const opened=hubOrder.flatMap(c=>projOf(c).filter(p=>p.y===flownYear).map(p=>`${c}'s ${PROJECTS[p.k].name.toLowerCase()}`));
+    if(opened.length)tierNotice=(tierNotice?tierNotice+' ':'')+`Now open for ${flownYear+1}: ${opened.join(', ')}.`;
     launched=false; editIdx=null; pending={}; gatesPending=0; tierPend={H:0,I:0}; lastAward=null;
     undoStack=[];                             // a new year is a fresh undo context
     markYearStart();                          // remember how the airline looks as the year opens

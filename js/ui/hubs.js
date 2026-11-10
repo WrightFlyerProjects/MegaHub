@@ -39,6 +39,30 @@ function renderHubsPanel(){
     </details>`:''}`;
 }
 
+/* v3.23 airport projects at the hub being viewed: runways, concourses, ground handling */
+function projectsHTML(c){
+  const x=infraOf(c), pend=projPending(c), press=hubDepPressure(rots), peak=rots.length?Math.max(...press):0, free=hubFree(c);
+  const dots=(k)=>{const mx=projMax(c,k), open=x[k]||0, n=projLevel(c,k);
+    return Array.from({length:PROJECTS[k].max},(_,i)=>`<i class="pdot${i<open?' on':i<n?' wip':''}${i>=mx?' na':''}"></i>`).join('');};
+  const rowsP=Object.keys(PROJECTS).map(k=>{const P=PROJECTS[k], mx=projMax(c,k), n=projLevel(c,k), cost=projCost(c,k), w=pend.filter(p=>p.k===k).length;
+    const status=mx===0?`<span class="pno">no room to build at ${c}</span>`:n>=mx?`<span class="pok">${w?'complete when it opens':'built'}</span>`
+      :`<button type="button" class="pbuy" data-buyproj="${k}" ${cost>points?'disabled':''} title="${cost>points?`you have ${points} pts`:`opens in ${YEAR+1}`}">Build · ${cost} pts</button>`;
+    return `<div class="prow"><div class="ph"><b>${P.name}</b><span class="pdots" aria-label="${x[k]||0} of ${P.max} open">${dots(k)}</span>${status}</div>
+      <div class="pw">${P.what}.${w?` <span class="pwip">${w>1?w+' under':'Under'} construction — opens ${YEAR+1}.</span>`:''} Upkeep ${P.upkeep} pts/yr once open${k==='conc'&&NO_RUNWAY.has(c)?` · costs more at ${c} (tight site)`:''}.</div></div>`;}).join('');
+  return `<div class="projbox"><h2 class="projh">Airport projects <em>${c} — ${A[c].n}</em>${superHub(c)?'<span class="superhub">Super hub</span>':''}</h2>
+    <div class="pcap"><span><b>${free}</b> departures / 30 min before delays build${rots.length?` · busiest: <b style="color:${peak>free?'var(--red)':'inherit'}">${peak}</b>`:''}</span>
+      <span>gate cap <b>${maxGatesAt(c)}</b></span><span>handling <b>${x.hand?'upgraded':'standard'}</b></span></div>
+    ${rowsP}<div class="note">Projects are built over the winter: bought in ${YEAR}, open for ${YEAR+1}.</div></div>`;
+}
+function renderProjPanel(){const el=$('projPanel'); if(el&&HC)el.innerHTML=projectsHTML(HC.c);}
+function buyProject(c,k){
+  const cost=projCost(c,k); if(cost>points||projLevel(c,k)>=projMax(c,k))return;
+  if(!confirm(`Build ${PROJECTS[k].name.toLowerCase()} at ${c} for ${cost} points? It opens in ${YEAR+1}.`))return;
+  pushUndo(`${PROJECTS[k].name.toLowerCase()} at ${c}`);
+  stashView(); hubStore[c].proj=projOf(c).concat([{k,y:YEAR}]);
+  points-=cost; logPts(`${PROJECTS[k].name.toLowerCase()} at ${c} (opens ${YEAR+1})`,-cost);
+  renderHub(); renderFleetPanel(); render(); saveLocal();
+}
 function afterHubChange(){syncAC();syncDest();renderHub();renderFleetPanel();render();preview();}
 function openHub(code,g){
   const cost=HUB_FEE+g*GATE_COST; if(!code||cost>points||hubOrder.includes(code))return;
@@ -73,6 +97,7 @@ document.addEventListener('click',e=>{
   if(at('data-nhp')){newHubGates=Math.min(MAX_GATES,newHubGates+1);renderHubsPanel();return;}
   if(at('data-nhm')){newHubGates=Math.max(1,newHubGates-1);renderHubsPanel();return;}
   if(t.id==='openHub'){openHub(newHubPick,Math.max(1,newHubGates));return;}
+  const bp=at('data-buyproj'); if(bp){buyProject(HC.c,bp);return;}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='newHubSel'){newHubPick=e.target.value;renderHubsPanel();return;}

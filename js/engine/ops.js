@@ -88,10 +88,10 @@ function hubDepPressure(rots,extra){
    back into an uncrowded bank on an on-time aircraft is on time. Delay appears only
    when a real factor is present — a crowded departure bank, or a long leg's larger
    exposure to weather/ATC beyond a free allowance. */
-function legExpDelay(a,b,pressure){
+function legExpDelay(a,b,pressure,free,cong){
   const d=nm(A[a],A[b]);
   const exposure=DLY_PER_NM*Math.max(0,d-DLY_FREE_NM);          // long legs only
-  const congest =DLY_CONGEST*Math.max(0,(pressure||0)-DLY_CONGEST_FREE); // banks over ~2 deps/30min
+  const congest =(cong==null?DLY_CONGEST:cong)*Math.max(0,(pressure||0)-(free==null?DLY_CONGEST_FREE:free)); // over the hub's free departures (v3.23: runways raise it)
   return exposure+congest;                                       // can be exactly 0
 }
 /* one trip's delay (v3.19), walked stop by stop. d = delay the aircraft brings from its last trip.
@@ -104,7 +104,7 @@ function tripDelay(d,r,a,H,p){
   const T=tripOf(r,a,H), L=T.legs, st=T.stops, n=L.length, pad=r.pad||0, cx=crossCong(r,a,H);
   if(r.from&&r.from!==H.c)p=0;                            // its first departure is from another hub's bank (crossCong)
   let k=0;
-  d+=legExpDelay(L[0].a,L[0].b,p); d=Math.max(0,d-pad);
+  d+=legExpDelay(L[0].a,L[0].b,p,H?hubFree(H.c):undefined,H?hubCong(H.c):undefined); d=Math.max(0,d-pad);
   while(k<n-1&&st[k].thru){k++; d+=legExpDelay(L[k].a,L[k].b,0);}
   if(cx)d+=cx.out;
   let outbound=d;                                        // as the aircraft sits at its first turnaround
@@ -122,7 +122,7 @@ function tripDelay(d,r,a,H,p){
   return {d,rec:Math.min(DELAY_CAP,Math.max(outbound,d))};
 }
 function delayMap(rots,fleet,H,pressIn){
-  const mt=minTurnHub(fleet), out={}, press=pressIn||hubDepPressure(rots);
+  const mt=minTurnHub(fleet), out={}, press=pressIn||hubDepPressure(rots), rec=H?hubRec(H.c):0;
   fleet.forEach(a=>{
     if(a.pair){if(isLead(a))lineDelays(rots,a,H,mt,press,out);return;}
     const rs=acRots(rots,a.id); if(!rs.length)return;
@@ -132,7 +132,7 @@ function delayMap(rots,fleet,H,pressIn){
         const prev=rs[(i-1+rs.length)%rs.length];
         // inherited delay from the previous rotation, reduced by ground slack before this one
         const gap=rs.length===1?DAY:mod(rs[i].dep-prev.arr);
-        if(rs.length>1)d=Math.max(0,d-Math.max(0,gap-mt));  // hub slack absorbs inherited delay
+        if(rs.length>1)d=Math.max(0,d-Math.max(0,gap-mt)-rec);  // hub slack absorbs inherited delay (+ better handling, v3.23)
         else d=0;                                            // a lone rotation inherits nothing
         const r=rs[i], p=press[Math.round(mod(r.dep))%DAY];
         const q=tripDelay(d,r,a,H,p); d=q.d;
@@ -149,7 +149,7 @@ function lineDelays(rots,a,H,mt,press,out){
   for(let pass=0;pass<3;pass++){
     for(let k=0;k<n;k++){
       const o=it[k], r=o.r, gap=it[(k-1+n)%n].gap;
-      if(n>1)d=Math.max(0,d-Math.max(0,gap-mt)); else d=0;
+      if(n>1)d=Math.max(0,d-Math.max(0,gap-mt)-(H?hubRec(H.c):0)); else d=0;
       const p=press[Math.round(mod(r.dep))%DAY];
       const q=tripDelay(d,r,a,H,p); d=q.d;
       out[o.i]=q.rec;

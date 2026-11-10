@@ -25,6 +25,19 @@ const TURN_INTL=90, TURN_WIDE=45;
 const CLIMB=12, JET_KT=55;
 /* Gate tiers, nested: 0 standard · 1 heavy (widebody-capable) · 2 international (customs, also
    widebody-capable). A gate takes its own tier and everything below it. */
+/* v3.23 hub projects (airport infrastructure). Bought in one year, open the next. */
+const PROJECTS={
+  rwy: {name:'New runway',      cost:350, upkeep:5, max:2, what:'More departures per 30 minutes before banks get congested'},
+  conc:{name:'New concourse',   cost:250, upkeep:5, max:2, what:'Room for 15 more gates'},
+  hand:{name:'Ground handling', cost:150, upkeep:3, max:1, what:'Crowded banks delay each flight less, and turns at the hub recover more delay'}};
+const RWY_FREE=[0,4,9];                    // free departures per 30 min: 6 → 10 → 15
+const CONC_GATES=15;                       // gate cap 30 → 45 → 60
+const HAND_CONG=0.6, HAND_REC=5;           // handling: congestion minutes per extra departure ×0.6; +5 min recovered per hub turn
+const NO_RUNWAY=new Set(['LGA','DCA','MDW','SAN']);   // no room to build runways; concourses cost CONC_TIGHT× there
+const CONC_TIGHT=1.5;
+/* v3.23 delay cost: points per passenger-minute of delay on a typical day; full flights (no seats to
+   rebook anyone) count FULL_DLY× */
+const DLY_PTS=1/20000, FULL_LF=0.85, FULL_DLY=1.5;
 const GATE_UP_H=4, GATE_UP_I=6;          // upfit costs in points: standard→heavy, heavy→international
 const HEAVY_SEATS=200;                   // the widebody line (same one TURN_WIDE uses)
 const TOW_AFTER=45, TOW_MIN_GROUND=90;   // on the ground 90m+: customs gate needed only for the first 45m
@@ -33,3 +46,5 @@ const TOW_AFTER=45, TOW_MIN_GROUND=90;   // on the ground 90m+: customs gate nee
 const PRECLEAR=new Set(['YYZ','YVR','YUL','YYC','YOW','YEG','YWG','BDA','NAS','FPO','AUA']);
 const VAC_MULT=3, VAC_KNEE=1.2;   // v3.16 vacation demand: ×3 up to weight 1.2; above that the boost stays +2.4 weight (v3.17)
 const vacMult=w=>(w+(VAC_MULT-1)*Math.min(w,VAC_KNEE))/w;     // MBJ 1.2 → ×3 · SDQ 1.8 → ×2.33 · SJU 2.4 → ×2
+const VAC_CAP={KOA:2};                    // v3.23: Kona would overshoot its real traffic at ×3
+const vacX=a=>Math.min(VAC_CAP[a.c]||VAC_MULT,vacMult(a.w));

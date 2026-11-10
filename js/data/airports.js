@@ -224,14 +224,21 @@ const AIRPORTS=[
  ['GND','Grenada',12.0040,-61.7853,0.4,-240,0,1],['POS','Port of Spain',10.5953,-61.3376,1.0,-240,0,1],
  ['CUR','Curacao',12.1889,-68.9598,0.6,-240,0,1],['BON','Bonaire',12.1310,-68.2685,0.3,-240,0,1],
  ['EIS','Tortola',18.4455,-64.5417,0.3,-240,0,1],['PTP','Guadeloupe',16.2654,-61.5328,0.6,-240,0,1],
- ['FDF','Martinique',14.5910,-61.0032,0.6,-240,0,1]
+ ['FDF','Martinique',14.5910,-61.0032,0.6,-240,0,1],
+ /* v3.23 beaches: Mexico's Pacific coast, Cozumel, Costa Rica, Honduras (weights = local size; the vacation boost adds the visitors) */
+ ['MZT','Mazatlan',23.1614,-106.2661,0.5,-420,0,1],['ACA','Acapulco',16.7571,-99.7540,0.7,-360,0,1],
+ ['ZIH','Ixtapa-Zihuatanejo',17.6016,-101.4606,0.4,-360,0,1],['HUX','Huatulco',15.7753,-96.2626,0.3,-360,0,1],
+ ['ZLO','Manzanillo',19.1448,-104.5588,0.2,-360,0,1],['CZM','Cozumel',20.5224,-86.9256,0.4,-360,0,1],
+ ['LIR','Liberia CR',10.5933,-85.5444,0.5,-360,0,1],['RTB','Roatan',16.3168,-86.5230,0.3,-360,0,1]
 ].map(a=>({c:a[0],n:a[1],lat:a[2],lon:a[3],w:a[4],utc:a[5],ocean:!!a[6],intl:!!a[7]}));
 /* v3.16 vacation destinations (Caribbean, Bahamas, Bermuda; Mexican beaches from v3.17): their demand is mostly US/Canadian travellers flying out, which a
    population-style weight undercounts. Markets between one of these and the US/Canada are scaled
    by VAC_MULT (constants.js); island-to-island and overseas markets are not. */
 const VACATION=new Set(['SJU','STT','STX','BQN','PSE','NAS','FPO','MBJ','KIN','SDQ','PUJ','STI','POP','PAP','GCM','PLS',
   'SXM','ANU','SKB','BGI','UVF','GND','POS','AUA','CUR','BON','EIS','PTP','FDF','BDA',
-  'CUN','PVR','SJD']);                    // v3.17: Mexican beach cities
+  'CUN','PVR','SJD',                      // v3.17: Mexican beach cities
+  'HNL','OGG','KOA','LIH',                // v3.23: Hawaii (Hilo left out — mostly local and inter-island)
+  'MZT','ACA','ZIH','HUX','ZLO','CZM','LIR','RTB','BZE']);   // v3.23: Mexico's Pacific coast, Cozumel, Central America
 AIRPORTS.forEach(a=>{a.vac=VACATION.has(a.c);});
 /* v3.17 runways: [longest paved runway ft, field elevation ft]. From OurAirports (current data), except
    airports whose code belonged to an older field in the game's years: IST Atatürk, NGO Komaki, DOH old
@@ -278,6 +285,7 @@ const RWY={
  CAN:[12467,50],BNE:[11680,13],NGO:[8990,52],SGN:[12468,33],GUM:[12015,298],PPT:[11360,5],NAN:[10739,59],YOW:[10000,374],YEG:[11000,2373],YWG:[11000,783],
  YHZ:[10500,477],PVR:[10171,23],SJD:[9843,374],BZE:[9678,15],TGU:[6112,3294],SAP:[9203,91],MGA:[8012,194],GYE:[9154,19],PUJ:[10171,47],STI:[8595,565],
  POP:[10108,15],PAP:[9974,122],GCM:[7867,8],PLS:[9199,15],FPO:[11019,7],SXM:[7546,13],ANU:[9003,62],SKB:[7602,170],BGI:[11000,169],UVF:[9003,14],
- GND:[9003,41],POS:[10500,58],CUR:[11188,29],BON:[9449,20],EIS:[4642,15],PTP:[11499,36],FDF:[9843,16]
+ GND:[9003,41],POS:[10500,58],CUR:[11188,29],BON:[9449,20],EIS:[4642,15],PTP:[11499,36],FDF:[9843,16],
+ MZT:[8858,38],ACA:[10825,16],ZIH:[8202,26],HUX:[8858,464],ZLO:[7218,30],CZM:[10165,15],LIR:[9022,270],RTB:[7349,18]   // v3.23
 };
 AIRPORTS.forEach(a=>{const r=RWY[a.c]; a.rw=r[0]; a.el=r[1];});
