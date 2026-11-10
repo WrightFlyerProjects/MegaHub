@@ -249,17 +249,18 @@ renderSchedule(E);
    keeps one number across both legs of its direction. */
 function rotLegs(r,ac,Hh,home,ri){
   Hh=Hh||HC; home=home||Hh.c; if(ri==null)ri=rots.indexOf(r);
+  const nums=airEval().nums, N=(k,f)=>(nums&&nums.get(k))||f;   // one lookup per call (v3.22)
   const tailAt=t=>ac.pair?dayTail(t,r.ac,ac.pair):r.ac;        // 2-day line: whoever is on this part of the cycle today
   if(r.stops&&(loopHub(r,Hh)||!crossHub(r,Hh))){const T=tripOf(r,ac,Hh), segs=tripSegs(T), out=[];       // any other trip shape (v3.21): one number per flight
     segs.forEach((g,j)=>{const a=T.legs[g[0]], z=T.legs[g[g.length-1]];
-      const fb=flightNo(a.a,z.b,mod(a.dep+tzD(a.a,Hh)),g.length>1?a.b:null,'out',ac), flt=numOf(home+'#'+ri+'#'+segKey(j,segs.length),fb);
+      const fb=flightNo(a.a,z.b,mod(a.dep+tzD(a.a,Hh)),g.length>1?a.b:null,'out',ac), flt=N(home+'#'+ri+'#'+segKey(j,segs.length),fb);
       g.forEach(k=>{const l=T.legs[k]; out.push({flt,a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t});});});
     return out;}
   if(crossHub(r,Hh))
-    return legPlan(r,ac,Hh).map(l=>({flt:numOf(home+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));
+    return legPlan(r,ac,Hh).map(l=>({flt:N(home+'#'+ri+'#L'+l.k,l.no),a:l.a,b:l.b,dep:mod(l.dep+tzD(l.a,Hh)),arr:mod(l.arr+tzD(l.b,Hh)),ac:tailAt(l.dep),t:ac.t,owner:l.owner}));
   const hc=Hh.c, m=shape(r,ac,Hh).marks;
-  const out=numOf(home+'#'+ri+'#out',flightNo(hc,r.dst,r.dep,r.via||null,'out',ac)),
-        ret=numOf(home+'#'+ri+'#ret',flightNo(hc,r.dst,r.dep,r.via||null,'ret',ac));
+  const out=N(home+'#'+ri+'#out',flightNo(hc,r.dst,r.dep,r.via||null,'out',ac)),
+        ret=N(home+'#'+ri+'#ret',flightNo(hc,r.dst,r.dep,r.via||null,'ret',ac));
   const L=(flt,a,b,dep,arr)=>({flt,a,b,dep:mod(dep+tzD(a,Hh)),arr:mod(arr+tzD(b,Hh)),ac:tailAt(dep),t:ac.t});
   return r.via
     ?[L(out,hc,r.via,m.depHub,m.arrVia),L(out,r.via,r.dst,m.depVia,m.arrDst),L(ret,r.dst,r.via,m.depDst,m.arrVia2),L(ret,r.via,hc,m.depVia2,m.arrHub)]

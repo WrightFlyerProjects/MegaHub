@@ -124,8 +124,13 @@ let rebaseNote=null;
 
 /* ---- what the editor shows ---- */
 const levels=()=>{try{return airEval().levels||{};}catch(e){return {};}};
+/* nonstop legs flown per direction, airline-wide — counted once per evaluation (v3.22) */
+function legCounts(){const AE=airEval(); if(AE.legCnt)return AE.legCnt; const m={};
+  AE.hubs.forEach(h=>{const F=new Map(h.fleet.map(a=>[a.id,a])); h.rots.forEach(r=>{const ac=F.get(r.ac); if(!ac)return;
+    tripOf(r,ac,h.H).legs.forEach(l=>{m[l.a+l.b]=(m[l.a+l.b]||0)+1;});});});
+  return AE.legCnt=m;}
 function wayBack(a,b,L){
-  const lv=L[b+a]||0, n=allLegsAt(b).filter(l=>l.a===b&&l.b===a).length;
+  const lv=L[b+a]||0, n=legCounts()[b+a]||0;
   if(lv>=3)return `<span class="chip okc">${n>1?n+' nonstops':'nonstop'} ${b} → ${a}</span>`;
   if(lv===2)return `<span class="chip warn" title="Travellers can only get back by connecting — about ${Math.round((1-RET_PART)*100)}% go elsewhere">back only by connection · −${Math.round((1-RET_PART)*100)}%</span>`;
   if(lv===1)return `<span class="chip warn" title="The only way back changes planes twice">back only via 2 hubs · −${Math.round((1-RET_PART)*100)}%</span>`;
@@ -202,6 +207,18 @@ function renderDayPanel(){
 const legTz=c=>{const d=tzD(c,HC)/60; return (d>0?'+':'')+d+'h';};
 
 /* ---- the leg form ---- */
+/* cities an aircraft can fly to from a city, sorted (home, your hubs, then nearest first), with their <option>
+   markup — the same for every redraw until the type, city, hubs or year change (v3.22) */
+const _dests=new Map();
+function destsFrom(ac,from){
+  const key=[ac.t,from,HC.c,hubOrder.join(','),YEAR].join('|'); let L=_dests.get(key); if(L)return L;
+  const seen=new Set(), o=A[from];
+  L=[A[HC.c],...hubOrder.map(h=>A[h]),...SPOKES].filter(s=>s&&!seen.has(s.c)&&seen.add(s.c)&&s.c!==from&&canLeg(ac,from,s.c))
+    .map(s=>({c:s.c,n:s.n,hub:isHubC(s.c),own:s.c===HC.c?2:isOwnHub(s.c,HC)?1:0,d:nm(o,s)}))
+    .sort((x,y)=>(y.own-x.own)||(x.d-y.d)).slice(0,400);
+  L.forEach(d=>d.html=`<option value="${d.c}">${d.c} — ${d.n}${d.hub?' (hub)':''} · ${Math.round(d.d)} nm</option>`);
+  if(_dests.size>200)_dests.clear(); _dests.set(key,L); return L;
+}
 function legFormInit(){
   const S=seqOf($('ac').value), n=S.legs.length;
   if(legAfter==null||legAfter>=n)legAfter=n?n-1:-1;
@@ -223,7 +240,7 @@ function renderLegForm(){
   const {ac,legs,n,cyc,editing,prev,from}=c;
   const afterOpts=(n?`<option value="-1"${legAfter===-1?' selected':''}>Start of the day (before ${legs[0].flt||legs[0].a+'→'+legs[0].b})</option>`:'<option value="-1">First leg of the day</option>')
     +legs.map((l,i)=>`<option value="${i}"${legAfter===i?' selected':''}>${l.flt||''} ${l.a} → ${l.b} · arr ${fmt(locT(l.arr,l.b))}${tzD(l.b,HC)?' '+legTz(l.b):''}</option>`).join('');
-  const seen=new Set(), dests=[A[HC.c],...hubOrder.map(h=>A[h]),...SPOKES].filter(s=>s&&!seen.has(s.c)&&seen.add(s.c)&&s.c!==from&&canLeg(ac,from,s.c));
+  const dests=destsFrom(ac,from);
   if(!editing&&legTo&&!dests.some(s=>s.c===legTo))legTo='';
   if(editing&&legTo==='' )legTo=legs[legEdit].b;
   /* default departure: as soon as the aircraft is ready */
@@ -235,7 +252,7 @@ function renderLegForm(){
     ${cyc>DAY?`<label>Day</label><div class="daysel"><button type="button" data-legday="1" class="${legDay===1?'on':''}">Day 1</button><button type="button" data-legday="2" class="${legDay===2?'on':''}">Day 2</button></div>`:''}
     <label>From</label><div class="fromfix">${from} — ${A[from].n} <span>· where ${ac.id} ${prev||editing?'will be':'starts'}</span></div>
     <label for="legToSel">To <span style="text-transform:none;letter-spacing:0">· ${dests.length} cities in range</span></label>
-    <select id="legToSel"><option value="">pick a city…</option>${dests.sort((x,y)=>(x.c===HC.c?-1:y.c===HC.c?1:0)||(isOwnHub(y.c,HC)-isOwnHub(x.c,HC))||(nm(A[from],x)-nm(A[from],y))).slice(0,400).map(s=>`<option value="${s.c}"${s.c===legTo?' selected':''}>${s.c} — ${s.n}${isHubC(s.c)?' (hub)':''} · ${Math.round(nm(A[from],s))} nm</option>`).join('')}</select>
+    <select id="legToSel"><option value="">pick a city…</option>${dests.map(d=>d.html.replace(`value="${legTo}"`,`value="${legTo}" selected`)).join('')}</select>
     <div class="duo trio" style="margin-top:4px">
       <div><label for="legDepT">Dep (${from} local)</label><input type="time" id="legDepT" step="60" value="${hhmmStr(legDepLoc)}"></div>
       <div><label>At ${from}</label><div class="fromfix" id="legGnd">—</div></div>
@@ -345,3 +362,10 @@ $('ac').addEventListener('input',()=>{legEdit=null; legAfter=null; legTo=''; leg
 setEditTab(editTab,true);
 /* does this trip spend a night away (a long stop at a spoke)? classic: its turn */
 const tripRon=r=>r&&r.stops?r.stops.some((s,k)=>k<r.stops.length-1&&!s.thru&&s.g>240&&!isHubC(s.c)):!!(r&&r.turn>240);
+
+/* v3.22: clicks made while the page was busy redrawing land on whatever the redraw put under the pointer
+   (a second "Add leg" adds the next leg twice). Any click that happened before the last redraw finished is dropped. */
+let uiBusyUntil=0;
+const _renderAll=render;
+render=function(){const r=_renderAll.apply(this,arguments); uiBusyUntil=performance.now(); return r;};
+document.addEventListener('click',e=>{if(e.timeStamp&&e.timeStamp<uiBusyUntil){e.stopImmediatePropagation(); e.preventDefault();}},true);

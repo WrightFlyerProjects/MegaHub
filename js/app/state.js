@@ -57,11 +57,26 @@ let pointsLog=[];
 function logPts(what,amt){if(!amt)return; pointsLog.push({y:YEAR,what,amt:Math.round(amt),bal:points}); if(pointsLog.length>80)pointsLog.shift();}
 const airUpkeep=()=>allHubs().reduce((s,h)=>s+upkeepPts(h.fleet,h.gates,h.tiers),0);
 /* one evaluation of the whole airline (hubs share connecting demand), cached until anything changes */
-let _airE=null,_airSig='';
+let _airE=null,_airSig='',_airFP=null;
+/* v3.22: a cheap fingerprint of everything the evaluation depends on — the same objects with the same fields.
+   Checked on every call (the UI asks for flight numbers thousands of times per redraw); the full signature
+   below is only built when the fingerprint changes. */
+function airFP(){
+  const fp=[YEAR,hubOrder.length];
+  const hubAt=c=>HC&&c===HC.c?{fleet:owned,rots,gates:gatesOwned,band:(hubStore[c]&&hubStore[c].band)||0}:hubStore[c];
+  const codes=hubOrder.length?hubOrder:(HC?[HC.c]:[]);
+  for(const c of codes){const h=hubAt(c); if(!h){fp.push(c,null);continue;}
+    fp.push(c,h.band||0,h.gates,h.fleet.length,h.rots.length);
+    for(const a of h.fleet)fp.push(a,a.id,a.t,a.pair);     // aircraft are edited in place (pairing, tail renumbering)
+    for(const r of h.rots)fp.push(r,r.ac,r.dep);}          // rotations are replaced, not edited — ref + a safety check
+  return fp;
+}
+const sameFP=(a,b)=>{if(!a||a.length!==b.length)return false; for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false; return true;};
 function airEval(){
+  const fp=airFP(); if(_airE&&sameFP(_airFP,fp))return _airE;
   const hs=netHubs();
   const sig=YEAR+'|'+JSON.stringify(hs.map(h=>[h.c,h.band,h.gates,h.fleet.map(a=>a.id+'/'+a.t+'/'+(a.pair||'')),h.rots.map(r=>[r.ac,r.dst,r.via,r.dep,r.turn,r.pad||0,r.dur,r.from||'',r.stops?JSON.stringify(r.stops):''])]));
-  if(_airE&&sig===_airSig)return _airE;
+  if(_airE&&sig===_airSig){_airFP=fp; return _airE;}
   const res=hs.length===1?[evaluate(hs[0].rots,hs[0].fleet,hs[0].gates,hs[0].H)]
     :evaluateMulti(hs.map(h=>({rots:h.rots,fleet:vFleetOf(h.c,hs),gates:h.gates,H:h.H})));
   const levels=evaluateMulti.lastLevels||{};                                 // v3.21: way-back levels for the schedule editor
@@ -74,7 +89,7 @@ function airEval(){
      from its totals (exact); per-hub nets are attributions */
   if(hs.some(h=>h.rots.some(r=>crossHub(r,h.H)))){total.emptyMi=Math.max(0,total.seatMi-total.pm); total.netPm=total.pm-EMPTY_W*total.emptyMi;}
   if(hs.length===1){total.lf=res[0].lf; total.otp=res[0].otp;}              // one hub: exactly its own figures
-  _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs)),levels}; _airSig=sig; return _airE;
+  _airE={byHub,total,hubs:hs,nums:numberFlights(netList(hs)),levels}; _airSig=sig; _airFP=airFP(); return _airE;
 }
 /* pre-v3.18 numbers for the current schedule, computed on demand (only last year's records need them) */
 const oldNums=()=>{const AE=airEval(); return AE.oldNums||(AE.oldNums=numberFlightsLegacy(netList(AE.hubs)));};
